@@ -45,24 +45,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   background-size: 21px 21px;
   z-index: 0;
 }
-.site-header, .browser-header { position: relative; z-index: 3; display: flex; justify-content: space-between; align-items: center; height: 40px; }
-.site-brand { text-decoration: none; font-size: 17px; font-weight: 950; letter-spacing: -.045em; }
-.brand-star { color: #f02a8e; margin-left: 4px; }
-.site-header__right, .desk-footer, .browser-header { font-size: 12px; letter-spacing: .14em; font-weight: 800; }
-.site-header__right span { font-size: 18px; margin-left: 10px; }
-.desk-intro { position: relative; z-index: 2; margin-top: clamp(55px, 8vh, 115px); max-width: 390px; }
-.desk-intro .eyebrow { color: #9b5094; }
-.desk-intro h1 { margin: 18px 0 24px; font-size: clamp(48px, 4.6vw, 86px); line-height: 1.13; letter-spacing: -.09em; }
-.desk-intro h1 em { font-style: normal; color: #ed388d; }
-.desk-intro > p:not(.eyebrow) { font-size: clamp(16px, 1.15vw, 20px); line-height: 1.75; }
-.text-link { display: inline-flex; gap: 18px; text-decoration: none; font-size: 16px; font-weight: 800; margin-top: 24px; border-bottom: 2px solid currentColor; padding-bottom: 8px; }
-.text-link:hover { color: #d81c78; }
-.desk-scene { position: absolute; z-index: 1; inset: 95px 30px 55px 390px; display: flex; align-items: center; justify-content: flex-end; }
-.desk-image-wrap { position: relative; width: min(100%, 1269px); }
-.desk-image { display: block; width: 100%; height: auto; }
-.desk-monitor-hotspot { position: absolute; left: 43.2%; top: 0; width: 25.5%; height: 30%; clip-path: polygon(2% 0, 100% 16%, 97% 100%, 0 75%); cursor: pointer; }
+.browser-header { position: relative; z-index: 3; display: flex; justify-content: space-between; align-items: center; height: 40px; font-size: 12px; letter-spacing: .14em; font-weight: 800; }
+.desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; }
+.desk-image-wrap { position: relative; width: min(80vh, 100%); transform: translate(-1.85%, 2.6%); }
+.desk-image { display: block; width: 80vh; max-width: 100%; height: auto; }
+.desk-monitor-hotspot { position: absolute; inset: 0; clip-path: polygon(44.7% 1.7%, 67.1% 6.4%, 66.3% 27.1%, 44.2% 18.7%); cursor: pointer; }
 .desk-monitor-hotspot:hover, .desk-monitor-hotspot:focus-visible { background: rgba(246, 76, 158, .16); }
-.desk-footer { position: relative; z-index: 2; margin-top: auto; display: flex; justify-content: space-between; gap: 20px; }
 
 /* Monitor destination: stacked project browser. */
 .browser-page { background: radial-gradient(circle at 95% 81%, #d6ffda, transparent 38%), radial-gradient(circle at 54% 30%, #fff, transparent 47%), #fbfdfb; }
@@ -150,16 +138,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .project-window--depth-2 { left: 5vw; top: 10vw; }
   .project-window--depth-3 { left: 0; top: 15vw; }
   .browser-decoration--star { left: 12%; font-size: 140px; }
-  .desk-scene { left: 280px; }
 }
 @media (max-width: 760px) {
   .page-shell { padding: 18px; overflow-x: hidden; }
   .desk-page { min-height: 100svh; }
-  .site-header__right, .desk-footer span:last-child, .browser-header > span { display: none; }
-  .desk-intro { margin-top: 35px; }
-  .desk-intro h1 { font-size: 48px; }
-  .desk-scene { position: relative; inset: auto; margin-top: 30px; }
-  .desk-footer { margin-top: 30px; font-size: 9px; }
+  .browser-header > span { display: none; }
+  .desk-scene { inset: 18px; }
   .browser-layout { display: flex; flex-direction: column; height: auto; gap: 24px; }
   .project-intro { padding-top: 0; }
   .project-intro h1 { font-size: 56px; margin: 18px 0 8px; }
