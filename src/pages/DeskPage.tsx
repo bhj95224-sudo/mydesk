@@ -1,6 +1,3 @@
-import { ProjectArtwork } from '../components/ProjectArtwork';
-import { projects } from '../data/projects';
-
 export function DeskPage() {
   return (
     <main className="desk-page page-shell">
@@ -17,27 +14,10 @@ export function DeskPage() {
       </section>
 
       <section className="desk-scene" aria-label="책상 화면">
-        <div className="desk-note desk-note--top" aria-hidden="true">click<br />the monitor ✳</div>
-        <span className="desk-spark desk-spark--a" aria-hidden="true">✳</span>
-        <span className="desk-spark desk-spark--b" aria-hidden="true">✦</span>
-        <div className="monitor-assembly">
-          <a className="monitor" href="#/projects" aria-label="모니터를 열어 프로젝트 브라우저로 이동">
-            <div className="monitor-screen">
-              <div className="monitor-screen__top"><span>MY PROJECTS</span><span>01 / 04</span></div>
-              <div className="monitor-screen__content">
-                <div className="monitor-screen__copy"><span>SELECTED WORK</span><strong>프로젝트<br />브라우저</strong><span className="monitor-screen__hint">ENTER PROJECTS ↗</span></div>
-                <div className="monitor-preview" aria-hidden="true"><ProjectArtwork project={projects[0]} /></div>
-              </div>
-            </div>
-          </a>
-          <div className="monitor-neck" aria-hidden="true" />
-          <div className="monitor-base" aria-hidden="true" />
+        <div className="desk-image-wrap">
+          <img className="desk-image" src="/assets/desk-temporary.png" alt="모니터와 키보드, 마우스, 의자가 놓인 책상" />
+          <a className="desk-monitor-hotspot" href="#/projects" aria-label="모니터를 열어 프로젝트 브라우저로 이동" title="프로젝트 보기" />
         </div>
-        <div className="desk-keyboard" aria-label="작업 도구: Figma, VS Code, Illustrator, Photoshop, React">
-          {['FIGMA', 'VS CODE', 'ILLUSTRATOR', 'PHOTOSHOP', 'REACT'].map((tool) => <span key={tool}>{tool}</span>)}
-        </div>
-        <div className="desk-mouse" aria-hidden="true" />
-        <div className="desk-note desk-note--bottom" aria-hidden="true">make it<br />personal.</div>
       </section>
 
       <footer className="desk-footer"><span>DESIGNED & BUILT AS A PERSONAL PORTFOLIO</span><span>SCROLL / EXPLORE ✳</span></footer>

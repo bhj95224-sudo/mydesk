@@ -21,7 +21,7 @@ npm run dev
 - 프로젝트 창에 마우스를 올리거나 키보드 포커스가 들어오면 자동 전환이 멈춥니다.
 - 작은 화면에서도 구조가 무너지지 않도록 기본 반응형 레이아웃을 넣었습니다.
 
-현재 대표 화면은 **CSS로 만든 임시 시안**입니다. 비플레인·설화수·hourtention·자두야의 최종 이미지와 상세 문구를 받으면 교체할 수 있도록 `src/components/ProjectArtwork.tsx`와 `src/data/projects.ts`로 분리했습니다. 자두야의 개인 기여 범위는 확인 전까지 단정하지 않았습니다.
+메인 책상에는 사용자가 제공한 `임시.png`를 **수정하지 않고** `public/assets/desk-temporary.png`로 복사해 사용합니다. 이미지 속 모니터 화면에 프로젝트 브라우저 링크를 맞췄습니다. 프로젝트별 대표 화면은 아직 **CSS 임시 시안**이며, 최종 이미지와 상세 문구를 받으면 교체할 수 있도록 `src/components/ProjectArtwork.tsx`와 `src/data/projects.ts`로 분리했습니다. 자두야의 개인 기여 범위는 확인 전까지 단정하지 않았습니다.
 
 ## 문서
 
@@ -43,7 +43,7 @@ src/
   pages/ProjectBrowserPage.tsx 모니터 클릭 후 화면
   styles/global.css          레이아웃과 시각 스타일
   App.tsx                    화면 전환
-public/assets/              확정된 이미지·폰트 배치 위치
+public/assets/              임시 책상 이미지 및 향후 확정 이미지·폰트 배치 위치
 docs/OPEN_DECISIONS.md       남은 결정사항
 ```
 

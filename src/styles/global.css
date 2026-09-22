@@ -57,33 +57,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .desk-intro > p:not(.eyebrow) { font-size: clamp(16px, 1.15vw, 20px); line-height: 1.75; }
 .text-link { display: inline-flex; gap: 18px; text-decoration: none; font-size: 16px; font-weight: 800; margin-top: 24px; border-bottom: 2px solid currentColor; padding-bottom: 8px; }
 .text-link:hover { color: #d81c78; }
-.desk-scene { position: absolute; z-index: 1; inset: 95px 30px 55px 390px; }
-.monitor-assembly { position: absolute; top: 5%; left: 13%; width: min(77%, 1140px); }
-.monitor { display: block; position: relative; border: 20px solid #2e2d38; border-bottom-width: 28px; border-radius: 27px; aspect-ratio: 1.76; background: #2e2d38; box-shadow: 16px 26px 0 rgba(74, 59, 88, .13), 0 35px 65px rgba(52, 40, 62, .20); text-decoration: none; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease; }
-.monitor:hover { transform: translateY(-8px); box-shadow: 17px 35px 0 rgba(74, 59, 88, .1), 0 42px 70px rgba(52, 40, 62, .22); }
-.monitor::after { content: ""; position: absolute; bottom: -21px; left: 50%; width: 6px; height: 6px; background: #aaa9b1; border-radius: 50%; transform: translateX(-50%); }
-.monitor-screen { height: 100%; border-radius: 8px; overflow: hidden; background: #f7f5f1; }
-.monitor-screen__top { height: 12%; display: flex; align-items: center; justify-content: space-between; padding: 0 3%; font-size: clamp(8px, .75vw, 12px); font-weight: 900; letter-spacing: .12em; border-bottom: 1px solid #cacbc6; }
-.monitor-screen__content { height: 88%; display: grid; grid-template-columns: 35% 65%; padding: 3%; gap: 1%; }
-.monitor-screen__copy { display: flex; flex-direction: column; justify-content: center; gap: 7%; }
-.monitor-screen__copy > span:first-child { font-size: clamp(8px, .7vw, 12px); letter-spacing: .2em; font-weight: 800; }
-.monitor-screen__copy strong { font-size: clamp(24px, 3.1vw, 58px); line-height: 1.12; letter-spacing: -.08em; }
-.monitor-screen__hint { width: fit-content; padding: 11px 14px; border-radius: 30px; background: #f9d8ed; font-size: clamp(8px, .75vw, 12px); font-weight: 800; }
-.monitor-preview { border: 3px solid #075d27; border-radius: 25px; overflow: hidden; min-width: 0; }
-.monitor-preview .project-artwork { height: 100%; }
-.monitor-preview .beplain-wordmark { font-size: clamp(30px, 5.2vw, 98px); }
-.monitor-neck { width: 13%; height: 72px; margin: 0 auto; background: linear-gradient(90deg, #b6b5bd, #efeff1 45%, #aaa9b4); }
-.monitor-base { width: 34%; height: 22px; margin: 0 auto; border-radius: 50% 50% 8px 8px; background: #c7c7ce; box-shadow: 0 11px 12px rgba(55, 41, 55, .17); }
-.desk-keyboard { position: absolute; bottom: 3%; left: 30%; width: 49%; min-height: 105px; padding: 17px 18px; border: 8px solid #ddd4e6; border-radius: 24px; transform: rotate(-4deg); background: #f5eefa; box-shadow: 12px 17px 0 rgba(94, 68, 119, .11); display: flex; gap: 1.5%; align-items: center; justify-content: space-around; }
-.desk-keyboard span { background: #fff; border-radius: 10px; padding: 19px 10px; flex: 1; text-align: center; font-size: clamp(8px, .68vw, 12px); font-weight: 900; box-shadow: 0 5px 0 #e5dcea; }
-.desk-mouse { position: absolute; bottom: 9%; right: 4%; width: 82px; height: 118px; border-radius: 44px; background: linear-gradient(115deg, #fff 45%, #e9ddea); transform: rotate(13deg); box-shadow: 8px 14px 0 rgba(94, 68, 119, .12); }
-.desk-mouse::before { content: ""; position: absolute; width: 2px; height: 32px; background: #b8adbd; top: 12px; left: 50%; }
-.desk-note { position: absolute; display: grid; place-items: center; text-align: center; width: 130px; height: 130px; font-size: 19px; line-height: 1.2; font-weight: 800; box-shadow: 7px 10px 20px rgba(80, 70, 60, .12); }
-.desk-note--top { top: 0; right: 1%; background: #f8ef99; transform: rotate(10deg); }
-.desk-note--bottom { bottom: 8%; left: 3%; background: #ffc5dc; transform: rotate(-9deg); }
-.desk-spark { position: absolute; font-size: 140px; line-height: 1; }
-.desk-spark--a { left: 4%; top: 8%; color: #f357a7; transform: rotate(16deg); }
-.desk-spark--b { right: 0; top: 43%; color: #d7f363; transform: rotate(-12deg); }
+.desk-scene { position: absolute; z-index: 1; inset: 95px 30px 55px 390px; display: flex; align-items: center; justify-content: flex-end; }
+.desk-image-wrap { position: relative; width: min(100%, 1269px); }
+.desk-image { display: block; width: 100%; height: auto; }
+.desk-monitor-hotspot { position: absolute; left: 43.2%; top: 0; width: 25.5%; height: 30%; clip-path: polygon(2% 0, 100% 16%, 97% 100%, 0 75%); cursor: pointer; }
+.desk-monitor-hotspot:hover, .desk-monitor-hotspot:focus-visible { background: rgba(246, 76, 158, .16); }
 .desk-footer { position: relative; z-index: 2; margin-top: auto; display: flex; justify-content: space-between; gap: 20px; }
 
 /* Monitor destination: stacked project browser. */
@@ -173,7 +151,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .project-window--depth-3 { left: 0; top: 15vw; }
   .browser-decoration--star { left: 12%; font-size: 140px; }
   .desk-scene { left: 280px; }
-  .monitor-assembly { left: 2%; width: 91%; }
 }
 @media (max-width: 760px) {
   .page-shell { padding: 18px; overflow-x: hidden; }
@@ -181,18 +158,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .site-header__right, .desk-footer span:last-child, .browser-header > span { display: none; }
   .desk-intro { margin-top: 35px; }
   .desk-intro h1 { font-size: 48px; }
-  .desk-scene { position: relative; inset: auto; min-height: 460px; margin-top: 40px; }
-  .monitor-assembly { top: 25px; left: 0; width: 100%; }
-  .monitor { border-width: 9px; border-bottom-width: 13px; border-radius: 15px; }
-  .monitor-neck { height: 35px; }
-  .monitor-base { height: 14px; }
-  .monitor-screen__content { grid-template-columns: 38% 62%; }
-  .monitor-screen__copy strong { font-size: clamp(17px, 5vw, 38px); }
-  .monitor-screen__hint { padding: 6px; }
-  .desk-keyboard { width: 75%; left: 5%; bottom: 5%; min-height: 64px; padding: 9px; border-width: 5px; }
-  .desk-keyboard span { padding: 12px 2px; font-size: 6px; }
-  .desk-mouse { bottom: 5%; right: 1%; width: 42px; height: 61px; }
-  .desk-note--top, .desk-note--bottom, .desk-spark { display: none; }
+  .desk-scene { position: relative; inset: auto; margin-top: 30px; }
   .desk-footer { margin-top: 30px; font-size: 9px; }
   .browser-layout { display: flex; flex-direction: column; height: auto; gap: 24px; }
   .project-intro { padding-top: 0; }
