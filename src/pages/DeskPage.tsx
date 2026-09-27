@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { DeskSetupScene, type DeskSetupSceneHandle } from '../components/DeskSetupScene';
 import { MonitorOverlayScene } from '../components/MonitorOverlayScene';
+import { KeyboardOverlayScene } from '../components/KeyboardOverlayScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
-const DESK_OVERLAY_ASSETS = ['/assets/tablet.png', '/assets/keyboard.png'];
+const DESK_OVERLAY_ASSETS = ['/assets/tablet.png'];
 
 export function DeskPage({ onReady }: { onReady?: () => void }) {
   const [destination, setDestination] = useState<DeskDestination | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
   const [monitorSceneReady, setMonitorSceneReady] = useState(false);
+  const [keyboardSceneReady, setKeyboardSceneReady] = useState(false);
   const [overlayAssetsReady, setOverlayAssetsReady] = useState(false);
   const sceneRef = useRef<DeskSetupSceneHandle>(null);
   const readyNotifiedRef = useRef(false);
@@ -22,6 +24,10 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
 
   const handleMonitorSceneReady = useCallback(() => {
     setMonitorSceneReady(true);
+  }, []);
+
+  const handleKeyboardSceneReady = useCallback(() => {
+    setKeyboardSceneReady(true);
   }, []);
 
   useEffect(() => {
@@ -44,10 +50,16 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (!sceneReady || !monitorSceneReady || !overlayAssetsReady || readyNotifiedRef.current) return;
+    if (
+      !sceneReady ||
+      !monitorSceneReady ||
+      !keyboardSceneReady ||
+      !overlayAssetsReady ||
+      readyNotifiedRef.current
+    ) return;
     readyNotifiedRef.current = true;
     onReady?.();
-  }, [monitorSceneReady, onReady, overlayAssetsReady, sceneReady]);
+  }, [keyboardSceneReady, monitorSceneReady, onReady, overlayAssetsReady, sceneReady]);
 
   const resetTilt = () => {
     sceneRef.current?.resetAzimuthPointer();
@@ -101,7 +113,7 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
             aria-label="키보드를 열어 키보드 페이지로 이동"
             onClick={(event) => startNavigation(event, '/keyboard')}
           >
-            <img src="/assets/keyboard.png" alt="" />
+            <KeyboardOverlayScene className="desk-overlay-fill" onReady={handleKeyboardSceneReady} />
           </a>
           <a
             className="desk-overlay desk-overlay--monitor"

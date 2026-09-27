@@ -81,7 +81,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .desk-overlay-fill { display: block; width: 100%; height: 100%; }
 .desk-overlay--tablet { width: 16%; left: 19%; top: 16%; transform: rotate(-6deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--tablet:hover, .desk-overlay--tablet:focus-visible { transform: rotate(-6deg) translateY(-7px) scale(1.04); filter: drop-shadow(0 12px 12px rgba(54, 35, 63, .18)); }
-.desk-overlay--keyboard { width: 19%; left: 39%; top: 24%; transform: rotate(10deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
+.desk-overlay--keyboard { width: 19%; left: 39%; top: 24%; aspect-ratio: 1 / 1; transform: rotate(10deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--keyboard:hover, .desk-overlay--keyboard:focus-visible { transform: rotate(10deg) translateY(-7px) scale(1.04); filter: drop-shadow(0 12px 12px rgba(54, 35, 63, .18)); }
 .desk-overlay--monitor { width: 24%; left: 45%; top: 0.5%; aspect-ratio: 1 / 1; cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--monitor:hover, .desk-overlay--monitor:focus-visible { transform: translateY(-8px); }
