@@ -17,7 +17,7 @@ export type DeskSetupSceneHandle = {
 };
 
 const BASE_AZIMUTH_DEG = 35;
-const AZIMUTH_RANGE_DEG = 12;
+const AZIMUTH_RANGE_DEG = 6;
 const ELEVATION_DEG = 28;
 const CAMERA_MARGIN = 1.25;
 const AZIMUTH_EASE = 0.08;
