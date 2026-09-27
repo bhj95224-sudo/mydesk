@@ -168,46 +168,34 @@ function buildKeyList(): KeyDef[] {
   return keys;
 }
 
+// A single watertight solid via THREE.ExtrudeGeometry instead of hand-rolled indices:
+// the case has a CONSTANT cross-section (the wedge side-profile) along its full width,
+// which is exactly what ExtrudeGeometry guarantees a correct, manifold, consistently-
+// wound closed mesh for (front/back caps + side walls), with no risk of the backwards-
+// winding holes a hand-built index list can silently ship.
 function buildCaseGeometry(): THREE.BufferGeometry {
-  // side profile, back to front, in (z, y)
-  const profile: [number, number][] = [
-    [-CASE_D / 2, 0],
-    [-CASE_D / 2, BACK_H],
-    [CASE_D / 2 - BEVEL_Z, FRONT_H],
-    [CASE_D / 2, FRONT_LIP_H],
-    [CASE_D / 2, 0],
-  ];
-  const xLeft = -CASE_W / 2;
-  const xRight = CASE_W / 2;
+  const backZ = -CASE_D / 2;
+  const frontZ = CASE_D / 2;
+  const shoulderZ = CASE_D / 2 - BEVEL_Z;
 
-  const positions: number[] = [];
-  const indices: number[] = [];
+  // Profile traced back-bottom -> back-top -> shoulder -> front-lip-top -> front-bottom,
+  // then closePath() draws the flat bottom edge back to the start -- the shape is the
+  // FULL solid cross-section (front/back/top/bottom all included), not just an outline.
+  const shape = new THREE.Shape();
+  shape.moveTo(backZ, 0);
+  shape.lineTo(backZ, BACK_H);
+  shape.lineTo(shoulderZ, FRONT_H);
+  shape.lineTo(frontZ, FRONT_LIP_H);
+  shape.lineTo(frontZ, 0);
+  shape.closePath();
 
-  const leftStart = 0;
-  for (const [z, y] of profile) positions.push(xLeft, y, z);
-  const rightStart = profile.length;
-  for (const [z, y] of profile) positions.push(xRight, y, z);
-
-  // side strips between consecutive profile points
-  for (let i = 0; i < profile.length - 1; i += 1) {
-    const a0 = leftStart + i;
-    const a1 = leftStart + i + 1;
-    const b0 = rightStart + i;
-    const b1 = rightStart + i + 1;
-    indices.push(a0, b1, b0, a0, a1, b1);
-  }
-  // end caps (fan from point 0)
-  for (let i = 1; i < profile.length - 1; i += 1) {
-    indices.push(leftStart, leftStart + i, leftStart + i + 1);
-    indices.push(rightStart, rightStart + i + 1, rightStart + i);
-  }
-  // bottom face (close the underside): back-bottom(0) to front-bottom(last)
-  indices.push(leftStart + 0, rightStart + profile.length - 1, rightStart + 0);
-  indices.push(leftStart + 0, leftStart + profile.length - 1, rightStart + profile.length - 1);
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: CASE_W, bevelEnabled: false, steps: 1 });
+  // shape's local (x, y) = (world z, world y); extrude depth (local z) = world x.
+  geometry.rotateY(-Math.PI / 2);
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox!;
+  const cx = (bb.min.x + bb.max.x) / 2;
+  geometry.translate(-cx, 0, 0);
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -263,6 +251,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
     metalness: 0.05,
     clearcoat: 0.6,
     clearcoatRoughness: 0.25,
+    side: THREE.DoubleSide,
   });
   const caseMesh = new THREE.Mesh(buildCaseGeometry(), caseMaterial);
   caseMesh.name = 'keyboardCase';
@@ -338,26 +327,29 @@ export function createKeyboardEnvironment(renderer: THREE.WebGLRenderer): THREE.
   return env;
 }
 
+// Matches the desk-setup model's frameCurvedBirchPlyDeskSetupCamera() formula exactly
+// (max-dimension tangent fit, not a diagonal-sphere fit) so the same azimuth/elevation/
+// FOV/margin numbers produce the same camera "feel" across every standalone model.
 export function frameKeyboardCamera(
   camera: THREE.PerspectiveCamera,
   model: THREE.Object3D,
   opts: { azimuthDeg: number; elevationDeg: number; margin?: number },
 ): void {
   const box = new THREE.Box3().setFromObject(model);
-  const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
-  const radius = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 0.5;
-  const margin = opts.margin ?? 1.1;
-  const fovRad = (camera.fov * Math.PI) / 180;
-  const distance = (radius * margin) / Math.sin(fovRad / 2);
+  const center = box.getCenter(new THREE.Vector3());
+  const margin = opts.margin ?? 1.15;
+  const maxDim = Math.max(size.x, size.y, size.z) * margin;
+  const fov = (camera.fov * Math.PI) / 180;
+  const distance = (maxDim / 2) / Math.tan(fov / 2);
 
   const az = (opts.azimuthDeg * Math.PI) / 180;
   const el = (opts.elevationDeg * Math.PI) / 180;
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
   camera.up.set(0, 1, 0);
   camera.position.copy(center).addScaledVector(dir, distance);
-  camera.near = Math.max(0.01, distance - radius * 2);
-  camera.far = distance + radius * 4;
+  camera.near = Math.max(0.01, distance - maxDim);
+  camera.far = distance + maxDim * 2;
   camera.lookAt(center);
   camera.updateProjectionMatrix();
 }

@@ -14,8 +14,8 @@ type KeyboardOverlaySceneProps = {
 };
 
 const AZIMUTH_DEG = 22;
-const ELEVATION_DEG = 27;
-const CAMERA_MARGIN = 1.03;
+const ELEVATION_DEG = 34;
+const CAMERA_MARGIN = 1.07;
 
 export function KeyboardOverlayScene({ className, onReady }: KeyboardOverlaySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
