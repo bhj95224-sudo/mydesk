@@ -9,6 +9,7 @@ import {
 
 type DeskSetupSceneProps = {
   className?: string;
+  onReady?: () => void;
 };
 
 export type DeskSetupSceneHandle = {
@@ -23,7 +24,7 @@ const CAMERA_MARGIN = 1.25;
 const AZIMUTH_EASE = 0.08;
 
 export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupSceneProps>(
-  ({ className }, ref) => {
+  ({ className, onReady }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const targetAzimuthRef = useRef(BASE_AZIMUTH_DEG);
 
@@ -53,7 +54,14 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
 
       const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
 
-      const model = createCurvedBirchPlyDeskSetupModel({});
+      // The source model defaults to multi-megapixel procedural maps for look-dev.
+      // The entry-page canvas is much smaller, so 512px maps avoid tens of millions
+      // of synchronous texture samples without a visible loss at this display size.
+      const model = createCurvedBirchPlyDeskSetupModel({
+        textureSize: 512,
+        textureAnisotropy: 4,
+        qualityPriority: 'balanced',
+      });
       scene.add(model);
 
       const lights = createCurvedBirchPlyDeskSetupLookDevLights();
@@ -100,10 +108,15 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       resizeObserver.observe(container);
 
       let frameId = 0;
+      let readyNotified = false;
       const tick = () => {
         currentAzimuthDeg += (targetAzimuthRef.current - currentAzimuthDeg) * AZIMUTH_EASE;
         updateCameraPosition();
         renderer.render(scene, camera);
+        if (!readyNotified) {
+          readyNotified = true;
+          onReady?.();
+        }
         frameId = requestAnimationFrame(tick);
       };
       frameId = requestAnimationFrame(tick);
@@ -122,7 +135,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
           }
         });
       };
-    }, []);
+    }, [onReady]);
 
     return <div ref={containerRef} className={className} />;
   },

@@ -1,14 +1,53 @@
-import { useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { DeskSetupScene, type DeskSetupSceneHandle } from '../components/DeskSetupScene';
+import { MonitorOverlayScene } from '../components/MonitorOverlayScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
+const DESK_OVERLAY_ASSETS = ['/assets/tablet.png', '/assets/keyboard.png'];
 
-export function DeskPage() {
+export function DeskPage({ onReady }: { onReady?: () => void }) {
   const [destination, setDestination] = useState<DeskDestination | null>(null);
+  const [sceneReady, setSceneReady] = useState(false);
+  const [monitorSceneReady, setMonitorSceneReady] = useState(false);
+  const [overlayAssetsReady, setOverlayAssetsReady] = useState(false);
   const sceneRef = useRef<DeskSetupSceneHandle>(null);
+  const readyNotifiedRef = useRef(false);
+
+  const handleSceneReady = useCallback(() => {
+    setSceneReady(true);
+  }, []);
+
+  const handleMonitorSceneReady = useCallback(() => {
+    setMonitorSceneReady(true);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const preload = DESK_OVERLAY_ASSETS.map((src) => new Promise<void>((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+      image.src = src;
+      if (image.complete) resolve();
+    }));
+
+    void Promise.all(preload).then(() => {
+      if (!cancelled) setOverlayAssetsReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sceneReady || !monitorSceneReady || !overlayAssetsReady || readyNotifiedRef.current) return;
+    readyNotifiedRef.current = true;
+    onReady?.();
+  }, [monitorSceneReady, onReady, overlayAssetsReady, sceneReady]);
 
   const resetTilt = () => {
     sceneRef.current?.resetAzimuthPointer();
@@ -47,7 +86,7 @@ export function DeskPage() {
     >
       <section className="desk-scene" aria-label="책상 화면">
         <div className="desk-image-wrap">
-          <DeskSetupScene ref={sceneRef} className="desk-image" />
+          <DeskSetupScene ref={sceneRef} className="desk-image" onReady={handleSceneReady} />
           <a
             className="desk-overlay desk-overlay--tablet"
             href="#/tablet"
@@ -70,7 +109,7 @@ export function DeskPage() {
             aria-label="모니터를 열어 프로젝트 브라우저로 이동"
             onClick={(event) => startNavigation(event, '/projects')}
           >
-            <img src="/assets/monitor.png" alt="" />
+            <MonitorOverlayScene className="desk-overlay-fill" onReady={handleMonitorSceneReady} />
           </a>
         </div>
       </section>
