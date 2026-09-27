@@ -138,6 +138,25 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 .tablet-page { display: flex; flex-direction: column; }
 .keyboard-header, .tablet-header { position: relative; z-index: 4; }
+.keyboard-model-stage {
+  position: absolute;
+  inset: 72px 30px 24px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.keyboard-model-scene {
+  width: min(1180px, 92vw);
+  height: min(680px, calc(100vh - 120px));
+}
+.keyboard-model-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .tablet-physics-stage {
   position: relative;
   z-index: 1;

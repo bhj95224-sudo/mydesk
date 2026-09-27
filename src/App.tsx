@@ -1,11 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { IntroPage } from './pages/IntroPage';
-import { KeyboardPage } from './pages/KeyboardPage';
 import { ProjectBrowserPage } from './pages/ProjectBrowserPage';
 import { TabletPage } from './pages/TabletPage';
 
 const DeskPage = lazy(() =>
   import('./pages/DeskPage').then((module) => ({ default: module.DeskPage })),
+);
+const KeyboardPage = lazy(() =>
+  import('./pages/KeyboardPage').then((module) => ({ default: module.KeyboardPage })),
 );
 
 type Route = 'desk' | 'keyboard' | 'projects' | 'tablet';
@@ -33,7 +35,13 @@ export default function App() {
   }, []);
 
   if (route === 'projects') return <ProjectBrowserPage />;
-  if (route === 'keyboard') return <KeyboardPage />;
+  if (route === 'keyboard') {
+    return (
+      <Suspense fallback={<main className="keyboard-page page-shell" aria-label="키보드 페이지 로딩 중" />}>
+        <KeyboardPage />
+      </Suspense>
+    );
+  }
   if (route === 'tablet') return <TabletPage />;
   return (
     <>

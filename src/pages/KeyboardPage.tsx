@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { KeyboardInteractiveScene } from '../components/KeyboardInteractiveScene';
 
 export function KeyboardPage() {
   const [isLeaving, setIsLeaving] = useState(false);
@@ -26,6 +27,9 @@ export function KeyboardPage() {
           BACK TO DESK
         </a>
       </header>
+      <section className="keyboard-model-stage" aria-label="3D 키보드 체험">
+        <KeyboardInteractiveScene className="keyboard-model-scene" />
+      </section>
     </main>
   );
 }
