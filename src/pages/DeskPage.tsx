@@ -2,19 +2,19 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent, type Pointer
 import { DeskSetupScene, type DeskSetupSceneHandle } from '../components/DeskSetupScene';
 import { MonitorOverlayScene } from '../components/MonitorOverlayScene';
 import { KeyboardOverlayScene } from '../components/KeyboardOverlayScene';
+import { TabletOverlayScene } from '../components/TabletOverlayScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
-const DESK_OVERLAY_ASSETS = ['/assets/tablet.png'];
 
 export function DeskPage({ onReady }: { onReady?: () => void }) {
   const [destination, setDestination] = useState<DeskDestination | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
   const [monitorSceneReady, setMonitorSceneReady] = useState(false);
   const [keyboardSceneReady, setKeyboardSceneReady] = useState(false);
-  const [overlayAssetsReady, setOverlayAssetsReady] = useState(false);
+  const [tabletSceneReady, setTabletSceneReady] = useState(false);
   const sceneRef = useRef<DeskSetupSceneHandle>(null);
   const readyNotifiedRef = useRef(false);
 
@@ -30,23 +30,8 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
     setKeyboardSceneReady(true);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const preload = DESK_OVERLAY_ASSETS.map((src) => new Promise<void>((resolve) => {
-      const image = new Image();
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-      image.src = src;
-      if (image.complete) resolve();
-    }));
-
-    void Promise.all(preload).then(() => {
-      if (!cancelled) setOverlayAssetsReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+  const handleTabletSceneReady = useCallback(() => {
+    setTabletSceneReady(true);
   }, []);
 
   useEffect(() => {
@@ -54,12 +39,12 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
       !sceneReady ||
       !monitorSceneReady ||
       !keyboardSceneReady ||
-      !overlayAssetsReady ||
+      !tabletSceneReady ||
       readyNotifiedRef.current
     ) return;
     readyNotifiedRef.current = true;
     onReady?.();
-  }, [keyboardSceneReady, monitorSceneReady, onReady, overlayAssetsReady, sceneReady]);
+  }, [keyboardSceneReady, monitorSceneReady, onReady, sceneReady, tabletSceneReady]);
 
   const resetTilt = () => {
     sceneRef.current?.resetAzimuthPointer();
@@ -105,7 +90,7 @@ export function DeskPage({ onReady }: { onReady?: () => void }) {
             aria-label="태블릿을 열어 태블릿 페이지로 이동"
             onClick={(event) => startNavigation(event, '/tablet')}
           >
-            <img src="/assets/tablet.png" alt="" />
+            <TabletOverlayScene className="desk-overlay-fill" onReady={handleTabletSceneReady} />
           </a>
           <a
             className="desk-overlay desk-overlay--keyboard"
