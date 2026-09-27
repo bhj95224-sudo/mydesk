@@ -1,42 +1,53 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { DeskSetupScene, type DeskSetupSceneHandle } from '../components/DeskSetupScene';
+import { MonitorOverlayScene } from '../components/MonitorOverlayScene';
+import { KeyboardOverlayScene } from '../components/KeyboardOverlayScene';
+import { TabletOverlayScene } from '../components/TabletOverlayScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
-const DESK_TILT_MAX_X = 1;
-const DESK_TILT_MAX_Y = 2;
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
 
-export function DeskPage() {
+export function DeskPage({ onReady }: { onReady?: () => void }) {
   const [destination, setDestination] = useState<DeskDestination | null>(null);
-  const deskRef = useRef<HTMLDivElement>(null);
-  const tiltFrameRef = useRef<number | null>(null);
+  const [sceneReady, setSceneReady] = useState(false);
+  const [monitorSceneReady, setMonitorSceneReady] = useState(false);
+  const [keyboardSceneReady, setKeyboardSceneReady] = useState(false);
+  const [tabletSceneReady, setTabletSceneReady] = useState(false);
+  const sceneRef = useRef<DeskSetupSceneHandle>(null);
+  const readyNotifiedRef = useRef(false);
 
-  const updateTilt = (rotateX: number, rotateY: number) => {
-    if (tiltFrameRef.current !== null) {
-      cancelAnimationFrame(tiltFrameRef.current);
-    }
+  const handleSceneReady = useCallback(() => {
+    setSceneReady(true);
+  }, []);
 
-    tiltFrameRef.current = requestAnimationFrame(() => {
-      const desk = deskRef.current;
+  const handleMonitorSceneReady = useCallback(() => {
+    setMonitorSceneReady(true);
+  }, []);
 
-      if (desk) {
-        desk.style.setProperty('--desk-rotate-x', `${rotateX.toFixed(3)}deg`);
-        desk.style.setProperty('--desk-rotate-y', `${rotateY.toFixed(3)}deg`);
-      }
+  const handleKeyboardSceneReady = useCallback(() => {
+    setKeyboardSceneReady(true);
+  }, []);
 
-      tiltFrameRef.current = null;
-    });
-  };
+  const handleTabletSceneReady = useCallback(() => {
+    setTabletSceneReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !sceneReady ||
+      !monitorSceneReady ||
+      !keyboardSceneReady ||
+      !tabletSceneReady ||
+      readyNotifiedRef.current
+    ) return;
+    readyNotifiedRef.current = true;
+    onReady?.();
+  }, [keyboardSceneReady, monitorSceneReady, onReady, sceneReady, tabletSceneReady]);
 
   const resetTilt = () => {
-    updateTilt(0, 0);
+    sceneRef.current?.resetAzimuthPointer();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -49,22 +60,8 @@ export function DeskPage() {
     }
 
     const normalizedX = Math.max(-1, Math.min(1, (event.clientX / window.innerWidth) * 2 - 1));
-    const normalizedY = Math.max(-1, Math.min(1, (event.clientY / window.innerHeight) * 2 - 1));
-
-    updateTilt(
-      -normalizedY * DESK_TILT_MAX_X,
-      normalizedX * DESK_TILT_MAX_Y,
-    );
+    sceneRef.current?.setAzimuthPointer(normalizedX);
   };
-
-  useEffect(
-    () => () => {
-      if (tiltFrameRef.current !== null) {
-        cancelAnimationFrame(tiltFrameRef.current);
-      }
-    },
-    [],
-  );
 
   const startNavigation = (event: MouseEvent<HTMLAnchorElement>, nextDestination: DeskDestination) => {
     event.preventDefault();
@@ -85,15 +82,15 @@ export function DeskPage() {
       }}
     >
       <section className="desk-scene" aria-label="책상 화면">
-        <div ref={deskRef} className="desk-image-wrap">
-          <img className="desk-image" src="/assets/desk.png" alt="키보드와 태블릿, 스피커가 놓인 책상과 의자" />
+        <div className="desk-image-wrap">
+          <DeskSetupScene ref={sceneRef} className="desk-image" onReady={handleSceneReady} />
           <a
             className="desk-overlay desk-overlay--tablet"
             href="#/tablet"
             aria-label="태블릿을 열어 태블릿 페이지로 이동"
             onClick={(event) => startNavigation(event, '/tablet')}
           >
-            <img src="/assets/tablet.png" alt="" />
+            <TabletOverlayScene className="desk-overlay-fill" onReady={handleTabletSceneReady} />
           </a>
           <a
             className="desk-overlay desk-overlay--keyboard"
@@ -101,7 +98,7 @@ export function DeskPage() {
             aria-label="키보드를 열어 키보드 페이지로 이동"
             onClick={(event) => startNavigation(event, '/keyboard')}
           >
-            <img src="/assets/keyboard.png" alt="" />
+            <KeyboardOverlayScene className="desk-overlay-fill" onReady={handleKeyboardSceneReady} />
           </a>
           <a
             className="desk-overlay desk-overlay--monitor"
@@ -109,7 +106,7 @@ export function DeskPage() {
             aria-label="모니터를 열어 프로젝트 브라우저로 이동"
             onClick={(event) => startNavigation(event, '/projects')}
           >
-            <img src="/assets/monitor.png" alt="" />
+            <MonitorOverlayScene className="desk-overlay-fill" onReady={handleMonitorSceneReady} />
           </a>
         </div>
       </section>

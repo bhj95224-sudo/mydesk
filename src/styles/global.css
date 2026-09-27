@@ -67,29 +67,23 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   z-index: 0;
 }
 .browser-header { position: relative; z-index: 3; display: flex; justify-content: flex-end; align-items: center; height: 40px; font-size: 12px; letter-spacing: .14em; font-weight: 800; }
-.desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; perspective: 1500px; }
+.desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; }
 .desk-image-wrap {
-  --desk-rotate-x: 0deg;
-  --desk-rotate-y: 0deg;
   position: relative;
   width: min(80vh, 100%);
-  transform: translate(-1.85%, 2.6%) translateY(13vh) rotateX(var(--desk-rotate-x)) rotateY(var(--desk-rotate-y));
-  transform-origin: center center;
-  transform-style: preserve-3d;
-  transition: transform 180ms cubic-bezier(.22, 1, .36, 1);
-  will-change: transform;
+  transform: translate(-1.85%, 2.6%) translateY(13vh);
 }
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
-  .desk-image-wrap { transform: translate(-1.85%, 2.6%) translateY(13vh); transition: none; }
-}
-.desk-image { display: block; width: 80vh; max-width: 100%; height: auto; }
+.desk-image { display: block; width: 80vh; max-width: 100%; aspect-ratio: 4 / 3; }
+.desk-image canvas { display: block; width: 100%; height: 100%; }
 .desk-overlay { position: absolute; display: block; }
 .desk-overlay img { display: block; width: 100%; height: auto; }
-.desk-overlay--tablet { width: 16%; left: 19%; top: 16%; transform: rotate(-6deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
+.desk-overlay canvas { display: block; width: 100%; height: 100%; }
+.desk-overlay-fill { display: block; width: 100%; height: 100%; }
+.desk-overlay--tablet { width: 16%; left: 19%; top: 16%; aspect-ratio: 1 / 1; transform: rotate(-6deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--tablet:hover, .desk-overlay--tablet:focus-visible { transform: rotate(-6deg) translateY(-7px) scale(1.04); filter: drop-shadow(0 12px 12px rgba(54, 35, 63, .18)); }
-.desk-overlay--keyboard { width: 19%; left: 39%; top: 24%; transform: rotate(10deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
+.desk-overlay--keyboard { width: 19%; left: 39%; top: 24%; aspect-ratio: 1 / 1; transform: rotate(10deg); cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--keyboard:hover, .desk-overlay--keyboard:focus-visible { transform: rotate(10deg) translateY(-7px) scale(1.04); filter: drop-shadow(0 12px 12px rgba(54, 35, 63, .18)); }
-.desk-overlay--monitor { width: 24%; left: 45%; top: 0.5%; cursor: pointer; transition: transform .25s ease, filter .25s ease; }
+.desk-overlay--monitor { width: 24%; left: 45%; top: 0.5%; aspect-ratio: 1 / 1; cursor: pointer; transition: transform .25s ease, filter .25s ease; }
 .desk-overlay--monitor:hover, .desk-overlay--monitor:focus-visible { transform: translateY(-8px); }
 
 /* Monitor destination: stacked project browser. */
@@ -144,6 +138,25 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 .tablet-page { display: flex; flex-direction: column; }
 .keyboard-header, .tablet-header { position: relative; z-index: 4; }
+.keyboard-model-stage {
+  position: absolute;
+  inset: 72px 30px 24px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.keyboard-model-scene {
+  width: min(1180px, 92vw);
+  height: min(680px, calc(100vh - 120px));
+}
+.keyboard-model-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .tablet-physics-stage {
   position: relative;
   z-index: 1;
@@ -184,7 +197,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 
 /* Intro: first-load loading screen shown before the desk page. */
-.intro-page { background: #fbfaf6; animation: pageEnter .4s cubic-bezier(.22, 1, .36, 1) both; }
+.intro-page {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #fbfaf6;
+  animation: pageEnter .4s cubic-bezier(.22, 1, .36, 1) both;
+}
 .intro-tint {
   position: absolute;
   inset: 0;

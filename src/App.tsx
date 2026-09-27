@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
-import { DeskPage } from './pages/DeskPage';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { IntroPage } from './pages/IntroPage';
-import { KeyboardPage } from './pages/KeyboardPage';
 import { ProjectBrowserPage } from './pages/ProjectBrowserPage';
 import { TabletPage } from './pages/TabletPage';
+
+const DeskPage = lazy(() =>
+  import('./pages/DeskPage').then((module) => ({ default: module.DeskPage })),
+);
+const KeyboardPage = lazy(() =>
+  import('./pages/KeyboardPage').then((module) => ({ default: module.KeyboardPage })),
+);
 
 type Route = 'desk' | 'keyboard' | 'projects' | 'tablet';
 
@@ -17,6 +22,11 @@ function getRoute(): Route {
 export default function App() {
   const [route, setRoute] = useState<Route>(getRoute);
   const [introDone, setIntroDone] = useState(false);
+  const [deskReady, setDeskReady] = useState(false);
+
+  const handleDeskReady = useCallback(() => {
+    setDeskReady(true);
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(getRoute());
@@ -24,9 +34,23 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  if (route === 'desk' && !introDone) return <IntroPage onFinish={() => setIntroDone(true)} />;
   if (route === 'projects') return <ProjectBrowserPage />;
-  if (route === 'keyboard') return <KeyboardPage />;
+  if (route === 'keyboard') {
+    return (
+      <Suspense fallback={<main className="keyboard-page page-shell" aria-label="키보드 페이지 로딩 중" />}>
+        <KeyboardPage />
+      </Suspense>
+    );
+  }
   if (route === 'tablet') return <TabletPage />;
-  return <DeskPage />;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <DeskPage onReady={handleDeskReady} />
+      </Suspense>
+      {!introDone && (
+        <IntroPage ready={deskReady} onFinish={() => setIntroDone(true)} />
+      )}
+    </>
+  );
 }
