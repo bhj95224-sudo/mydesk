@@ -5,6 +5,7 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { DeskSetupScene } from '../components/DeskSetupScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
@@ -86,7 +87,7 @@ export function DeskPage() {
     >
       <section className="desk-scene" aria-label="책상 화면">
         <div ref={deskRef} className="desk-image-wrap">
-          <img className="desk-image" src="/assets/desk.png" alt="키보드와 태블릿, 스피커가 놓인 책상과 의자" />
+          <DeskSetupScene className="desk-image" />
           <a
             className="desk-overlay desk-overlay--tablet"
             href="#/tablet"
