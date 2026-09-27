@@ -67,20 +67,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   z-index: 0;
 }
 .browser-header { position: relative; z-index: 3; display: flex; justify-content: flex-end; align-items: center; height: 40px; font-size: 12px; letter-spacing: .14em; font-weight: 800; }
-.desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; perspective: 1500px; }
+.desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; }
 .desk-image-wrap {
-  --desk-rotate-x: 0deg;
-  --desk-rotate-y: 0deg;
   position: relative;
   width: min(80vh, 100%);
-  transform: translate(-1.85%, 2.6%) translateY(13vh) rotateX(var(--desk-rotate-x)) rotateY(var(--desk-rotate-y));
-  transform-origin: center center;
-  transform-style: preserve-3d;
-  transition: transform 180ms cubic-bezier(.22, 1, .36, 1);
-  will-change: transform;
-}
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
-  .desk-image-wrap { transform: translate(-1.85%, 2.6%) translateY(13vh); transition: none; }
+  transform: translate(-1.85%, 2.6%) translateY(13vh);
 }
 .desk-image { display: block; width: 80vh; max-width: 100%; aspect-ratio: 4 / 3; }
 .desk-image canvas { display: block; width: 100%; height: 100%; }

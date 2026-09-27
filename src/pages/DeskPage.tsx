@@ -1,43 +1,17 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
-import { DeskSetupScene } from '../components/DeskSetupScene';
+import { useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { DeskSetupScene, type DeskSetupSceneHandle } from '../components/DeskSetupScene';
 
 type DeskDestination = '/keyboard' | '/projects' | '/tablet';
 
-const DESK_TILT_MAX_X = 1;
-const DESK_TILT_MAX_Y = 2;
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
 
 export function DeskPage() {
   const [destination, setDestination] = useState<DeskDestination | null>(null);
-  const deskRef = useRef<HTMLDivElement>(null);
-  const tiltFrameRef = useRef<number | null>(null);
-
-  const updateTilt = (rotateX: number, rotateY: number) => {
-    if (tiltFrameRef.current !== null) {
-      cancelAnimationFrame(tiltFrameRef.current);
-    }
-
-    tiltFrameRef.current = requestAnimationFrame(() => {
-      const desk = deskRef.current;
-
-      if (desk) {
-        desk.style.setProperty('--desk-rotate-x', `${rotateX.toFixed(3)}deg`);
-        desk.style.setProperty('--desk-rotate-y', `${rotateY.toFixed(3)}deg`);
-      }
-
-      tiltFrameRef.current = null;
-    });
-  };
+  const sceneRef = useRef<DeskSetupSceneHandle>(null);
 
   const resetTilt = () => {
-    updateTilt(0, 0);
+    sceneRef.current?.resetAzimuthPointer();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -50,22 +24,8 @@ export function DeskPage() {
     }
 
     const normalizedX = Math.max(-1, Math.min(1, (event.clientX / window.innerWidth) * 2 - 1));
-    const normalizedY = Math.max(-1, Math.min(1, (event.clientY / window.innerHeight) * 2 - 1));
-
-    updateTilt(
-      -normalizedY * DESK_TILT_MAX_X,
-      normalizedX * DESK_TILT_MAX_Y,
-    );
+    sceneRef.current?.setAzimuthPointer(normalizedX);
   };
-
-  useEffect(
-    () => () => {
-      if (tiltFrameRef.current !== null) {
-        cancelAnimationFrame(tiltFrameRef.current);
-      }
-    },
-    [],
-  );
 
   const startNavigation = (event: MouseEvent<HTMLAnchorElement>, nextDestination: DeskDestination) => {
     event.preventDefault();
@@ -86,8 +46,8 @@ export function DeskPage() {
       }}
     >
       <section className="desk-scene" aria-label="책상 화면">
-        <div ref={deskRef} className="desk-image-wrap">
-          <DeskSetupScene className="desk-image" />
+        <div className="desk-image-wrap">
+          <DeskSetupScene ref={sceneRef} className="desk-image" />
           <a
             className="desk-overlay desk-overlay--tablet"
             href="#/tablet"
