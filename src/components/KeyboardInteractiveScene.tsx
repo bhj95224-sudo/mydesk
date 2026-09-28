@@ -11,13 +11,22 @@ import { attachKeyboardInteractions } from '../models/keyboardInteractions';
 
 type KeyboardInteractiveSceneProps = {
   className?: string;
+  onReady?: () => void;
 };
 
 const AZIMUTH_DEG = 0;
 const ELEVATION_DEG = 89.5;
-const CAMERA_MARGIN = 1.08;
+const CAMERA_MARGIN = 1.04;
+// Esc's left edge sits at local x = -46.25 (see colToX(0,1) in createKeyboardModel.ts);
+// F1's left edge sits at x = -36.0 (colToX(2,1) minus half its keycap width). Framing from
+// this x instead of the model's true left edge crops Esc and the gap before F1 out of view,
+// while the right edge stays at the model's own true bound -- so nothing on the right side
+// gets pushed out of frame the way a plain post-hoc pan would (panning a frame that's
+// already tight-fit to the whole keyboard just shifts the clipping from one side to the
+// other; it doesn't add room).
+const VISIBLE_LEFT_X = -41.0;
 
-export function KeyboardInteractiveScene({ className }: KeyboardInteractiveSceneProps) {
+export function KeyboardInteractiveScene({ className, onReady }: KeyboardInteractiveSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,7 +58,20 @@ export function KeyboardInteractiveScene({ className }: KeyboardInteractiveScene
       if (clientWidth === 0 || clientHeight === 0) return;
       renderer.setSize(clientWidth, clientHeight);
       camera.aspect = clientWidth / clientHeight;
-      frameKeyboardCamera(camera, model, {
+
+      // Frame against a box that starts at F1's left edge instead of the model's true left
+      // edge (Esc) -- see VISIBLE_LEFT_X above. This proxy mesh is never added to the scene;
+      // it exists only so frameKeyboardCamera can read its geometry bounds.
+      const fullBox = new THREE.Box3().setFromObject(model);
+      const cropSize = fullBox.getSize(new THREE.Vector3());
+      cropSize.x = fullBox.max.x - VISIBLE_LEFT_X;
+      const cropCenter = fullBox.getCenter(new THREE.Vector3());
+      cropCenter.x = (VISIBLE_LEFT_X + fullBox.max.x) / 2;
+      const cropProxy = new THREE.Mesh(new THREE.BoxGeometry(cropSize.x, cropSize.y, cropSize.z));
+      cropProxy.position.copy(cropCenter);
+      cropProxy.updateMatrixWorld(true);
+
+      frameKeyboardCamera(camera, cropProxy, {
         azimuthDeg: AZIMUTH_DEG,
         elevationDeg: ELEVATION_DEG,
         margin: CAMERA_MARGIN,
@@ -61,9 +83,14 @@ export function KeyboardInteractiveScene({ className }: KeyboardInteractiveScene
     resizeObserver.observe(container);
 
     let frameId = 0;
+    let readyNotified = false;
     const render = (now: number) => {
       interactions(now);
       renderer.render(scene, camera);
+      if (!readyNotified) {
+        readyNotified = true;
+        onReady?.();
+      }
       frameId = requestAnimationFrame(render);
     };
     frameId = requestAnimationFrame(render);
@@ -97,7 +124,7 @@ export function KeyboardInteractiveScene({ className }: KeyboardInteractiveScene
         container.removeChild(renderer.domElement);
       }
     };
-  }, []);
+  }, [onReady]);
 
   return <div ref={containerRef} className={className} />;
 }

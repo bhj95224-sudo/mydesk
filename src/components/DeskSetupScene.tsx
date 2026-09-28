@@ -6,10 +6,16 @@ import {
   configureCurvedBirchPlyDeskSetupRenderer,
   createCurvedBirchPlyDeskSetupEnvironment,
 } from '../models/createDeskSetupModel';
+import { createCurvedAllInOneMonitorModel } from '../models/createCurvedMonitorModel';
+import { createKeyboardModel } from '../models/createKeyboardModel';
+import { createTabletModel } from '../models/createTabletModel';
+
+export type DeskObjectDestination = '/keyboard' | '/projects' | '/tablet';
 
 type DeskSetupSceneProps = {
   className?: string;
   onReady?: () => void;
+  onObjectActivate?: (destination: DeskObjectDestination) => void;
 };
 
 export type DeskSetupSceneHandle = {
@@ -18,20 +24,38 @@ export type DeskSetupSceneHandle = {
 };
 
 const BASE_AZIMUTH_DEG = 35;
-const AZIMUTH_RANGE_DEG = 6;
+const AZIMUTH_RANGE_DEG = 4;
 const ELEVATION_DEG = 28;
 const CAMERA_MARGIN = 1.25;
 const AZIMUTH_EASE = 0.08;
 
+type ClickableDeskObject = {
+  destination: DeskObjectDestination;
+  model: THREE.Object3D;
+};
+
+function placeDeskObject(
+  model: THREE.Object3D,
+  scale: number,
+  position: THREE.Vector3Tuple,
+  rotationY = 0,
+): THREE.Object3D {
+  model.scale.setScalar(scale);
+  model.position.set(...position);
+  model.rotation.set(0, rotationY, 0);
+  model.updateMatrixWorld(true);
+  return model;
+}
+
 export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupSceneProps>(
-  ({ className, onReady }, ref) => {
+  ({ className, onReady, onObjectActivate }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const targetAzimuthRef = useRef(BASE_AZIMUTH_DEG);
 
     useImperativeHandle(ref, () => ({
       setAzimuthPointer(normalizedX: number) {
         const clamped = Math.max(-1, Math.min(1, normalizedX));
-        targetAzimuthRef.current = BASE_AZIMUTH_DEG + clamped * AZIMUTH_RANGE_DEG;
+        targetAzimuthRef.current = BASE_AZIMUTH_DEG - clamped * AZIMUTH_RANGE_DEG;
       },
       resetAzimuthPointer() {
         targetAzimuthRef.current = BASE_AZIMUTH_DEG;
@@ -64,6 +88,31 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       });
       scene.add(model);
 
+      const monitor = placeDeskObject(
+        createCurvedAllInOneMonitorModel({}),
+        0.48,
+        [0, 0.858, 0.19],
+      );
+      const keyboard = placeDeskObject(
+        createKeyboardModel({}),
+        0.0041,
+        [-0.12, 0.73, 0.49],
+        -0.05,
+      );
+      const tablet = placeDeskObject(
+        createTabletModel({}),
+        0.0028,
+        [0.5, 0.731, 0.49],
+        -0.035,
+      );
+      scene.add(monitor, keyboard, tablet);
+
+      const clickableObjects: ClickableDeskObject[] = [
+        { destination: '/projects', model: monitor },
+        { destination: '/keyboard', model: keyboard },
+        { destination: '/tablet', model: tablet },
+      ];
+
       const lights = createCurvedBirchPlyDeskSetupLookDevLights();
       scene.add(lights);
 
@@ -95,6 +144,38 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
 
       updateCameraPosition();
 
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+
+      const getPointedObject = (event: PointerEvent): ClickableDeskObject | undefined => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.set(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -((event.clientY - rect.top) / rect.height) * 2 + 1,
+        );
+        raycaster.setFromCamera(pointer, camera);
+        return clickableObjects.find(({ model: clickableModel }) =>
+          raycaster.intersectObject(clickableModel, true).length > 0,
+        );
+      };
+
+      const handleObjectPointerMove = (event: PointerEvent) => {
+        renderer.domElement.style.cursor = getPointedObject(event) ? 'pointer' : 'default';
+      };
+
+      const handleObjectPointerLeave = () => {
+        renderer.domElement.style.cursor = 'default';
+      };
+
+      const handleObjectClick = (event: PointerEvent) => {
+        const target = getPointedObject(event);
+        if (target) onObjectActivate?.(target.destination);
+      };
+
+      renderer.domElement.addEventListener('pointermove', handleObjectPointerMove);
+      renderer.domElement.addEventListener('pointerleave', handleObjectPointerLeave);
+      renderer.domElement.addEventListener('pointerup', handleObjectClick);
+
       const resize = () => {
         const { clientWidth, clientHeight } = container;
         if (clientWidth === 0 || clientHeight === 0) return;
@@ -124,18 +205,23 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       return () => {
         cancelAnimationFrame(frameId);
         resizeObserver.disconnect();
+        renderer.domElement.removeEventListener('pointermove', handleObjectPointerMove);
+        renderer.domElement.removeEventListener('pointerleave', handleObjectPointerLeave);
+        renderer.domElement.removeEventListener('pointerup', handleObjectClick);
         container.removeChild(renderer.domElement);
         renderer.dispose();
+        // environment is built fresh per mount (see createDeskSetupModel.ts) and must be
+        // disposed here; model is cached/shared across mounts, so only detach it.
         environment.dispose();
-        model.traverse((node) => {
-          if (node instanceof THREE.Mesh) {
-            node.geometry.dispose();
-            const materials = Array.isArray(node.material) ? node.material : [node.material];
-            materials.forEach((material) => material.dispose());
-          }
+        keyboard.traverse((node) => {
+          if (!(node instanceof THREE.Mesh)) return;
+          node.geometry.dispose();
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          materials.forEach((material) => material.dispose());
         });
+        scene.remove(model, monitor, keyboard, tablet, lights);
       };
-    }, [onReady]);
+    }, [onObjectActivate, onReady]);
 
     return <div ref={containerRef} className={className} />;
   },

@@ -9,15 +9,14 @@ import {
   MouseConstraint,
   type IEvent,
 } from 'matter-js';
-import type { TabletPlaceholderItem } from '../data/tabletPlaceholders';
+import type { TabletPhysicsItem } from '../data/tabletPlaceholders';
 
 const WALL_THICKNESS = 100;
-const MAX_PLACEHOLDER_WIDTH = 420;
 const STAGE_SIDE_GAP = 16;
 
 export function useTabletPhysics(
   stageRef: RefObject<HTMLElement | null>,
-  items: readonly TabletPlaceholderItem[],
+  items: readonly TabletPhysicsItem[],
 ) {
   useEffect(() => {
     const stage = stageRef.current;
@@ -30,14 +29,15 @@ export function useTabletPhysics(
       gravity: { x: 0, y: 1, scale: 0.001 },
     });
     const bodyElements = new Map<number, HTMLElement>();
-    const bodyItems = new Map<number, TabletPlaceholderItem>();
+    const bodyItems = new Map<number, TabletPhysicsItem>();
     const releaseTimers: number[] = [];
     let boundaryBodies: Body[] = [];
     let animationFrame = 0;
     let previousTime = performance.now();
+    const maxItemWidth = Math.max(...items.map((item) => item.width));
     let currentScale = Math.min(
       1,
-      Math.max(0.58, (stage.clientWidth - STAGE_SIDE_GAP * 2) / MAX_PLACEHOLDER_WIDTH),
+      Math.max(0.58, (stage.clientWidth - STAGE_SIDE_GAP * 2) / maxItemWidth),
     );
 
     const placeholderBodies = items.flatMap((item, index) => {
@@ -72,8 +72,9 @@ export function useTabletPhysics(
 
       const timer = window.setTimeout(() => {
         Composite.add(engine.world, body);
-        Body.setVelocity(body, { x: (index - 1) * 0.35, y: 0 });
-        Body.setAngularVelocity(body, (index - 1) * 0.006);
+        const direction = index % 2 === 0 ? -1 : 1;
+        Body.setVelocity(body, { x: direction * 0.25, y: 0 });
+        Body.setAngularVelocity(body, direction * (0.003 + index * 0.0004));
       }, item.spawnDelay);
       releaseTimers.push(timer);
 
@@ -155,7 +156,7 @@ export function useTabletPhysics(
     const resizeObserver = new ResizeObserver(() => {
       const nextScale = Math.min(
         1,
-        Math.max(0.58, (stage.clientWidth - STAGE_SIDE_GAP * 2) / MAX_PLACEHOLDER_WIDTH),
+        Math.max(0.58, (stage.clientWidth - STAGE_SIDE_GAP * 2) / maxItemWidth),
       );
 
       if (Math.abs(nextScale - currentScale) > 0.001) {

@@ -79,7 +79,21 @@ function buildBaseGeometry(): THREE.BufferGeometry {
   return buildRoundedSlabGeometry(OVERALL_W, OVERALL_D, CORNER_RADIUS, THICKNESS, BEVEL_THICKNESS, BEVEL_SIZE);
 }
 
+// Cached module-wide so the desk-overlay thumbnail and any other caller reuse the same
+// built group instead of rebuilding it on every mount. Callers must not dispose this
+// group's geometry/materials since the same instance is shared.
+const tabletModelCache = new Map<string, THREE.Group>();
+
 export function createTabletModel(options: ProceduralModelOptions = {}): THREE.Group {
+  const cacheKey = JSON.stringify(options);
+  const cached = tabletModelCache.get(cacheKey);
+  if (cached) return cached;
+  const built = buildTabletModel(options);
+  tabletModelCache.set(cacheKey, built);
+  return built;
+}
+
+function buildTabletModel(options: ProceduralModelOptions = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = 'Graphics Tablet';
 
@@ -184,6 +198,9 @@ export function createTabletLookDevLights(): THREE.Group {
   return group;
 }
 
+// NOT cached: a PMREMGenerator's output texture is tied to the WebGLRenderTarget of the
+// renderer that built it and renders blank with any other renderer -- see
+// createDeskSetupModel.ts's createCurvedBirchPlyDeskSetupEnvironment for the full story.
 export function createTabletEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const scene = new THREE.Scene();
