@@ -24,6 +24,9 @@ export type Project = {
   /** Middle/end stops of the page background tint gradient (white -> mid -> end), from Figma. */
   backgroundMid: string;
   backgroundEnd: string;
+  /** Left-edge scroll/position indicator colors, sampled from Figma mockups. */
+  progressTrack: string;
+  progressSegment: string;
   /** Window content image exported from Figma. Undefined = plain color panel (design has no visual yet). */
   contentImage?: string;
   contentBg?: string;
@@ -46,6 +49,8 @@ export const projects: Project[] = [
     titleFont: '"WILDgag", "Pretendard", sans-serif',
     backgroundMid: '#ebfbe6',
     backgroundEnd: '#a9ffa9',
+    progressTrack: '#B5D59A',
+    progressSegment: '#DF2684',
     contentImage: '/assets/projects/beplain-content.png',
     decor: [
       { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '11.09%', top: '25.00%', rotate: -49.91 },
@@ -67,6 +72,8 @@ export const projects: Project[] = [
     titleFont: '"Cormorant Garamond", Georgia, serif',
     backgroundMid: '#f5e0cc',
     backgroundEnd: '#ffc266',
+    progressTrack: '#DFC4B3',
+    progressSegment: '#E37D34',
     contentImage: '/assets/projects/sulwhasoo-content.png',
     decor: [
       { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '59.78%', rotate: -129.31, flipY: true },
@@ -88,6 +95,8 @@ export const projects: Project[] = [
     titleFont: '"Cafe24 Ssurround", "Pretendard", sans-serif',
     backgroundMid: '#ffd9cc',
     backgroundEnd: '#dfa9ff',
+    progressTrack: '#F9BA8F',
+    progressSegment: '#7145F0',
     contentBg: '#c1b0f2',
     decor: [],
   },
@@ -104,6 +113,8 @@ export const projects: Project[] = [
     titleFont: '"KERIS KEDU", "Pretendard", sans-serif',
     backgroundMid: '#ffefc0',
     backgroundEnd: '#ff7979',
+    progressTrack: '#F0AF64',
+    progressSegment: '#B43936',
     contentImage: '/assets/projects/jaduya-content.png',
     decor: [],
   },

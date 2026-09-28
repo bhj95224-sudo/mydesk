@@ -21,6 +21,7 @@ export function attachKeyboardInteractions(
   camera: THREE.Camera,
   model: THREE.Object3D,
   onKeyPress?: (letter: string) => void,
+  onBackgroundClick?: () => void,
 ): UpdateFn {
   const pressableKeys = (model.userData.pressableKeys as PressableKey[]) ?? [];
   const anims = new Map<PressableKey, KeyAnim>();
@@ -85,7 +86,10 @@ export function attachKeyboardInteractions(
   function onPointerDown(event: PointerEvent): void {
     updatePointerFromEvent(event);
     const hit = raycastPressable();
-    if (!hit) return;
+    if (!hit) {
+      onBackgroundClick?.();
+      return;
+    }
     const anim = anims.get(hit);
     if (!anim || anim.state !== 'idle') return;
     anim.state = 'pressing';

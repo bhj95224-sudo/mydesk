@@ -3,6 +3,31 @@ import * as THREE from 'three';
 export type ProceduralModelOptions = {
   castShadow?: boolean;
   receiveShadow?: boolean;
+  // When false, the nav cluster (PrtSc/ScrLk/Ins/Home/Del/End/arrows) is left out of both
+  // the key list and the case width, producing a narrower keyboard rather than one with a
+  // blank case area where those keys used to be. Defaults to true so existing callers (the
+  // desk-scene's small keyboard) are unaffected.
+  includeNavCluster?: boolean;
+  // When true, the PRESSABLE_KEYS (C/V/R/F/G/I/P) get individual accent colors instead of
+  // the normal IVORY -- see PRESSABLE_KEY_COLORS. Defaults to false so existing callers (the
+  // desk-scene's small keyboard) are unaffected.
+  highlightPressableKeys?: boolean;
+  // When true, every keycap's label is drawn into one shared canvas atlas instead of each
+  // key getting its own CanvasTexture (~80+ separate textures for a full board). The
+  // individually-uploaded textures are what causes the visible pop-in on first render --
+  // see the atlas helpers below. Defaults to false; only the desk-scene's small keyboard
+  // opts in, since the interactive /keyboard page's key count is much smaller.
+  atlasLabels?: boolean;
+};
+
+const PRESSABLE_KEY_COLORS: Record<string, string> = {
+  C: '#FF772E',
+  V: '#47ACFF',
+  R: '#087EA4',
+  F: '#FE4307',
+  G: '#79DF6A',
+  I: '#E05D00',
+  P: '#30A2FF',
 };
 
 // ---- grid ------------------------------------------------------------
@@ -16,14 +41,16 @@ const MAIN_START = 0;
 const MAIN_W = 15;
 const NAV_START = MAIN_START + MAIN_W + 0.5;
 const NAV_W = 3;
-const KEY_AREA_W_KU = NAV_START + NAV_W; // no numpad
 
 const MARGIN_X = 6;
 const MARGIN_BACK = 5;
 const MARGIN_FRONT = 8;
 const BEVEL_Z = 6;
 
-const CASE_W = MARGIN_X * 2 + KEY_AREA_W_KU * PITCH;
+function getCaseW(includeNavCluster: boolean): number {
+  const keyAreaWKu = includeNavCluster ? NAV_START + NAV_W : MAIN_W;
+  return MARGIN_X * 2 + keyAreaWKu * PITCH;
+}
 const KEY_AREA_D = ROWS * PITCH;
 const CASE_D = MARGIN_BACK + KEY_AREA_D + MARGIN_FRONT;
 const BACK_H = 5.0;
@@ -40,12 +67,12 @@ const PLUM = '#5c2f35';
 const LIGHT_TEXT = '#5c3a2e';
 const DARK_TEXT = '#e9e4d8';
 
-export const PRESSABLE_KEYS = new Set(['C', 'V', 'N', 'F', 'G', 'I', 'P']);
+export const PRESSABLE_KEYS = new Set(['C', 'V', 'R', 'F', 'G', 'I', 'P']);
 
-type KeyDef = { row: number; col: number; w: number; d: number; color: string; label: string };
+type KeyDef = { row: number; col: number; w: number; d: number; color: string; label: string; textColor?: string };
 
-function colToX(col: number, w: number): number {
-  return -CASE_W / 2 + MARGIN_X + (col + w / 2) * PITCH;
+function colToX(col: number, w: number, caseW: number): number {
+  return -caseW / 2 + MARGIN_X + (col + w / 2) * PITCH;
 }
 
 function rowToZ(row: number, d: number): number {
@@ -69,7 +96,7 @@ function layoutRow(groupStart: number, row: number, items: RowItem[], out: KeyDe
   }
 }
 
-function buildKeyList(): KeyDef[] {
+function buildKeyList(includeNavCluster: boolean, highlightPressableKeys: boolean): KeyDef[] {
   const keys: KeyDef[] = [];
 
   layoutRow(MAIN_START, 0, [
@@ -137,21 +164,33 @@ function buildKeyList(): KeyDef[] {
   ], keys);
 
   // ---- nav cluster (no numpad) -------------------------------------------
-  layoutRow(NAV_START, 0, [
-    { w: 1, color: BLUEGRAY, label: 'PrtSc' }, { w: 1, color: BLUEGRAY, label: 'ScrLk' },
-  ], keys);
-  layoutRow(NAV_START, 1, [
-    { w: 1, color: BLUEGRAY, label: 'Ins' }, { w: 1, color: BLUEGRAY, label: 'Home' },
-  ], keys);
-  layoutRow(NAV_START, 2, [
-    { w: 1, color: BLUEGRAY, label: 'Del' }, { w: 1, color: BLUEGRAY, label: 'End' },
-  ], keys);
-  layoutRow(NAV_START, 4, [
-    { w: 1, color: PLUM, label: '^', gap: 1 },
-  ], keys);
-  layoutRow(NAV_START, 5, [
-    { w: 1, color: PLUM, label: '<' }, { w: 1, color: PLUM, label: 'v' }, { w: 1, color: PLUM, label: '>' },
-  ], keys);
+  if (includeNavCluster) {
+    layoutRow(NAV_START, 0, [
+      { w: 1, color: BLUEGRAY, label: 'PrtSc' }, { w: 1, color: BLUEGRAY, label: 'ScrLk' },
+    ], keys);
+    layoutRow(NAV_START, 1, [
+      { w: 1, color: BLUEGRAY, label: 'Ins' }, { w: 1, color: BLUEGRAY, label: 'Home' },
+    ], keys);
+    layoutRow(NAV_START, 2, [
+      { w: 1, color: BLUEGRAY, label: 'Del' }, { w: 1, color: BLUEGRAY, label: 'End' },
+    ], keys);
+    layoutRow(NAV_START, 4, [
+      { w: 1, color: PLUM, label: '^', gap: 1 },
+    ], keys);
+    layoutRow(NAV_START, 5, [
+      { w: 1, color: PLUM, label: '<' }, { w: 1, color: PLUM, label: 'v' }, { w: 1, color: PLUM, label: '>' },
+    ], keys);
+  }
+
+  if (highlightPressableKeys) {
+    for (const key of keys) {
+      const accent = PRESSABLE_KEY_COLORS[key.label];
+      if (accent) {
+        key.color = accent;
+        key.textColor = '#FFFFFF';
+      }
+    }
+  }
 
   return keys;
 }
@@ -159,7 +198,7 @@ function buildKeyList(): KeyDef[] {
 // Same wedge-profile solid as the standalone keyboard model: a single watertight
 // ExtrudeGeometry, closed front/back/left/right/bottom, both ends geometrically
 // symmetric by construction (one profile, extruded straight along width).
-function buildCaseGeometry(): THREE.BufferGeometry {
+function buildCaseGeometry(caseW: number): THREE.BufferGeometry {
   const backZ = -CASE_D / 2;
   const frontZ = CASE_D / 2;
   const shoulderZ = CASE_D / 2 - BEVEL_Z;
@@ -172,7 +211,7 @@ function buildCaseGeometry(): THREE.BufferGeometry {
   shape.lineTo(frontZ, 0);
   shape.closePath();
 
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: CASE_W, bevelEnabled: false, steps: 1 });
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: caseW, bevelEnabled: false, steps: 1 });
   geometry.rotateY(-Math.PI / 2);
   geometry.computeBoundingBox();
   const bb = geometry.boundingBox!;
@@ -182,6 +221,34 @@ function buildCaseGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
+function drawLabelCell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  text: string,
+  bgColor: string,
+  textColor: string,
+): void {
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(x, y, w, h);
+  if (text) {
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const wide = w > h * 1.5;
+    // Ratios of the original 128px-tall cell (40/128, 52/128, 34/128, 30/128, 26/128) so
+    // this scales correctly for the smaller atlas cells used on the desk page -- see
+    // buildLabelAtlas's CELL_W/CELL_H.
+    let fontSize = h * (wide ? 0.3125 : 0.40625);
+    if (text.length > 5) fontSize = h * (wide ? 0.265625 : 0.234375);
+    if (text.length > 8) fontSize = h * 0.203125;
+    ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+    ctx.fillText(text, x + w / 2, y + h / 2 + h * 0.015625);
+  }
+}
+
 function makeLabelTexture(text: string, bgColor: string, textColor: string, wide: boolean): THREE.CanvasTexture {
   const w = wide ? 256 : 128;
   const h = 128;
@@ -189,41 +256,107 @@ function makeLabelTexture(text: string, bgColor: string, textColor: string, wide
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, w, h);
-  if (text) {
-    ctx.fillStyle = textColor;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    let fontSize = wide ? 40 : 52;
-    if (text.length > 5) fontSize = wide ? 34 : 30;
-    if (text.length > 8) fontSize = 26;
-    ctx.font = `600 ${fontSize}px Arial, sans-serif`;
-    ctx.fillText(text, w / 2, h / 2 + 2);
-  }
+  drawLabelCell(ctx, 0, 0, w, h, text, bgColor, textColor);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
   return tex;
 }
 
+type UVRect = { u0: number; v0: number; u1: number; v1: number };
+
+// Draws every key's label into one shared canvas instead of each key getting its own
+// CanvasTexture. A full board is ~80+ keys, and uploading that many separate textures on
+// first render is what causes the visible pop-in -- see ProceduralModelOptions.atlasLabels.
+function buildLabelAtlas(keys: KeyDef[]): { texture: THREE.CanvasTexture; uvRects: UVRect[] } {
+  // Quarter the per-key resolution of the non-atlas texture (256x128): this atlas is only
+  // ever used for the desk-page's small, distant decorative keyboard (see
+  // ProceduralModelOptions.atlasLabels), where the extra sharpness isn't visible but a
+  // ~2.5MP canvas full of fillText calls plus its one-time GPU upload is real, measurable
+  // synchronous cost on first render -- the same pop-in this atlas was built to avoid.
+  const cellW = 128;
+  const cellH = 64;
+  const cols = Math.ceil(Math.sqrt(keys.length));
+  const rows = Math.ceil(keys.length / cols);
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * cellW;
+  canvas.height = rows * cellH;
+  const ctx = canvas.getContext('2d')!;
+
+  const uvRects = keys.map((key, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = col * cellW;
+    const y = row * cellH;
+    const textColor = key.textColor ?? (isLightColor(key.color) ? LIGHT_TEXT : DARK_TEXT);
+    drawLabelCell(ctx, x, y, cellW, cellH, key.label, key.color, textColor);
+    return {
+      u0: x / canvas.width,
+      u1: (x + cellW) / canvas.width,
+      // Canvas y grows downward; UV v grows upward -- flip.
+      v0: 1 - (y + cellH) / canvas.height,
+      v1: 1 - y / canvas.height,
+    };
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // The atlas has no padding between cells, so a generated mip level would blend each
+  // label into its neighbor. Mipmaps aren't needed for a UI-like texture viewed at a
+  // roughly fixed distance, so just turn them off instead of adding padding.
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return { texture: tex, uvRects };
+}
+
+function remapTopFaceUV(geo: THREE.BoxGeometry, rect: UVRect): void {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  // BoxGeometry's 6 faces are laid out as contiguous 4-vertex blocks in the order
+  // [+x, -x, +y(top), -y(bottom), +z, -z] (see the material-array comment in
+  // buildKeycapMesh) -- so the top face is vertices 8-11.
+  for (let i = 8; i < 12; i++) {
+    uv.setXY(i, rect.u0 + uv.getX(i) * (rect.u1 - rect.u0), rect.v0 + uv.getY(i) * (rect.v1 - rect.v0));
+  }
+  uv.needsUpdate = true;
+}
+
 function isLightColor(hex: string): boolean {
   return hex === IVORY || hex === SALMON;
 }
 
-function buildKeycapMesh(key: KeyDef, geometryCache: Map<string, THREE.BoxGeometry>): THREE.Mesh {
+type AtlasBinding = { material: THREE.MeshStandardMaterial; uv: UVRect };
+
+function buildKeycapMesh(
+  key: KeyDef,
+  geometryCache: Map<string, THREE.BoxGeometry>,
+  atlas?: AtlasBinding,
+): THREE.Mesh {
   const w = key.w * PITCH - GAP;
   const d = key.d * PITCH - GAP;
-  const geoKey = `${w.toFixed(3)}x${d.toFixed(3)}`;
-  let geo = geometryCache.get(geoKey);
-  if (!geo) {
+
+  let geo: THREE.BoxGeometry;
+  let topMat: THREE.MeshStandardMaterial;
+  if (atlas) {
+    // Each atlas key needs its own top-face UV, so unlike the non-atlas path it can't share
+    // a cached geometry across same-size keys.
     geo = new THREE.BoxGeometry(w, KEY_H, d, 1, 1, 1);
-    geometryCache.set(geoKey, geo);
+    remapTopFaceUV(geo, atlas.uv);
+    topMat = atlas.material;
+  } else {
+    const geoKey = `${w.toFixed(3)}x${d.toFixed(3)}`;
+    let cached = geometryCache.get(geoKey);
+    if (!cached) {
+      cached = new THREE.BoxGeometry(w, KEY_H, d, 1, 1, 1);
+      geometryCache.set(geoKey, cached);
+    }
+    geo = cached;
+    const textColor = key.textColor ?? (isLightColor(key.color) ? LIGHT_TEXT : DARK_TEXT);
+    const labelTex = makeLabelTexture(key.label, key.color, textColor, key.w >= 2);
+    topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.5, metalness: 0.05 });
   }
-  const textColor = isLightColor(key.color) ? LIGHT_TEXT : DARK_TEXT;
-  const labelTex = makeLabelTexture(key.label, key.color, textColor, key.w >= 2);
+
   const sideMat = new THREE.MeshStandardMaterial({ color: key.color, roughness: 0.55, metalness: 0.05 });
-  const topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.5, metalness: 0.05 });
   // BoxGeometry face material order: [+x, -x, +y(top), -y(bottom), +z, -z]
   const mats = [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
   const mesh = new THREE.Mesh(geo, mats);
@@ -239,6 +372,11 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
   const root = new THREE.Group();
   root.name = 'TKL Keyboard';
 
+  const includeNavCluster = options.includeNavCluster ?? true;
+  const highlightPressableKeys = options.highlightPressableKeys ?? false;
+  const useLabelAtlas = options.atlasLabels ?? false;
+  const caseW = getCaseW(includeNavCluster);
+
   const setShadow = (mesh: THREE.Mesh) => {
     mesh.castShadow = options.castShadow ?? true;
     mesh.receiveShadow = options.receiveShadow ?? true;
@@ -252,7 +390,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
     clearcoatRoughness: 0.25,
     side: THREE.DoubleSide,
   });
-  const caseMesh = new THREE.Mesh(buildCaseGeometry(), caseMaterial);
+  const caseMesh = new THREE.Mesh(buildCaseGeometry(caseW), caseMaterial);
   caseMesh.name = 'keyboardCase';
   setShadow(caseMesh);
   root.add(caseMesh);
@@ -267,12 +405,25 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
 
   const pressableKeys: PressableKey[] = [];
   const geometryCache = new Map<string, THREE.BoxGeometry>();
+  const keyList = buildKeyList(includeNavCluster, highlightPressableKeys);
 
-  for (const key of buildKeyList()) {
-    const x = colToX(key.col, key.w);
+  let atlasMaterial: THREE.MeshStandardMaterial | null = null;
+  let atlasUvRects: UVRect[] | null = null;
+  if (useLabelAtlas) {
+    const atlas = buildLabelAtlas(keyList);
+    atlasMaterial = new THREE.MeshStandardMaterial({ map: atlas.texture, roughness: 0.5, metalness: 0.05 });
+    atlasUvRects = atlas.uvRects;
+  }
+
+  for (const [index, key] of keyList.entries()) {
+    const x = colToX(key.col, key.w, caseW);
     const z = rowToZ(key.row, key.d);
     const y = plateY(z) + KEY_H / 2;
-    const mesh = buildKeycapMesh(key, geometryCache);
+    const mesh = buildKeycapMesh(
+      key,
+      geometryCache,
+      atlasMaterial && atlasUvRects ? { material: atlasMaterial, uv: atlasUvRects[index] } : undefined,
+    );
     setShadow(mesh);
 
     if (PRESSABLE_KEYS.has(key.label)) {
