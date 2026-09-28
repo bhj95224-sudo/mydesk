@@ -9,7 +9,7 @@ import { HobbyNote } from '../components/HobbyNote';
 import type { Position, StickyNoteHandle } from '../components/StickyNote';
 
 const NOTE_SCREEN_MARGIN = 24;
-const NOTE_STACK_OFFSET = 40;
+const NOTE_STACK_OFFSET = 100;
 
 const DESK_TILT_DISABLED_QUERY =
   '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';

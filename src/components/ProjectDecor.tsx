@@ -25,33 +25,41 @@ export function ProjectDecor({ themeId, items }: { themeId: string; items: Decor
                 left: item.left,
                 top: item.top,
               }}
-              initial={{ opacity: 0 }}
+              initial={{ opacity: 0, scale: 0.72, y: 14 }}
               animate={
                 reduceMotion
-                  ? { opacity: 1, x: 0, y: 0, rotate: 0 }
-                  : {
-                      opacity: 1,
-                      x: [0, horizontalDrift, horizontalDrift * -0.35, 0],
-                      y: [0, -verticalDrift, verticalDrift * 0.4, 0],
-                      rotate: [0, rotationDrift, rotationDrift * -0.45, 0],
-                    }
+                  ? { opacity: 1, scale: 1, y: 0 }
+                  : { opacity: 1, scale: [0.72, 1.045, 1], y: [14, -3, 0] }
               }
               exit={{ opacity: 0 }}
-              transition={{
-                opacity: { duration: 0.5 },
-                x: { duration, delay, repeat: Infinity, ease: 'easeInOut' },
-                y: { duration: duration * 0.92, delay, repeat: Infinity, ease: 'easeInOut' },
-                rotate: { duration: duration * 1.12, delay, repeat: Infinity, ease: 'easeInOut' },
-              }}
+              transition={{ duration: 0.52, ease: [0.2, 0.85, 0.3, 1] }}
             >
-              <img
-                src={item.src}
-                alt=""
-                className="browser-decor__item"
-                style={{
-                  transform: `rotate(${item.rotate ?? 0}deg)${item.flipY ? ' scaleY(-1)' : ''}`,
+              <motion.div
+                className="browser-decor__drift"
+                animate={
+                  reduceMotion
+                    ? { x: 0, y: 0, rotate: 0 }
+                    : {
+                        x: [0, horizontalDrift, horizontalDrift * -0.35, 0],
+                        y: [0, -verticalDrift, verticalDrift * 0.4, 0],
+                        rotate: [0, rotationDrift, rotationDrift * -0.45, 0],
+                      }
+                }
+                transition={{
+                  x: { duration, delay, repeat: Infinity, ease: 'easeInOut' },
+                  y: { duration: duration * 0.92, delay, repeat: Infinity, ease: 'easeInOut' },
+                  rotate: { duration: duration * 1.12, delay, repeat: Infinity, ease: 'easeInOut' },
                 }}
-              />
+              >
+                <img
+                  src={item.src}
+                  alt=""
+                  className="browser-decor__item"
+                  style={{
+                    transform: `rotate(${item.rotate ?? 0}deg)${item.flipY ? ' scaleY(-1)' : ''}`,
+                  }}
+                />
+              </motion.div>
             </motion.div>
           );
         })}
