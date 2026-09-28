@@ -212,10 +212,71 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 
 /* Monitor destination: stacked project browser. */
-.browser-page { background: #fbfdfb; animation: pageEnter .4s cubic-bezier(.22, 1, .36, 1) both; }
-@keyframes pageEnter {
-  from { opacity: 0; transform: translateY(-6px) scale(1.01); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+.browser-page { background: #fbfdfb; }
+.monitor-entry-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.monitor-entry-transition::before,
+.monitor-entry-transition::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  left: 0;
+  height: calc(50% + 1px);
+  background-image: linear-gradient(180deg, #ffffff 0.25%, #fbeee6 52.9%, #ede4e7 103.5%);
+  background-repeat: no-repeat;
+  background-size: 100vw 100vh;
+  transition: transform .68s cubic-bezier(.76, 0, .24, 1);
+  will-change: transform;
+}
+.monitor-entry-transition::before {
+  top: 0;
+  background-position: top left;
+  border-bottom: 1px solid rgba(83, 77, 142, .3);
+  box-shadow: 0 1px 18px rgba(83, 77, 142, .18);
+}
+.monitor-entry-transition::after {
+  bottom: 0;
+  background-position: bottom left;
+  border-top: 1px solid rgba(83, 77, 142, .3);
+  box-shadow: 0 -1px 18px rgba(83, 77, 142, .18);
+}
+.monitor-entry-transition.is-opening { pointer-events: none; }
+.monitor-entry-transition.is-opening::before { transform: translateY(-100%); }
+.monitor-entry-transition.is-opening::after { transform: translateY(100%); }
+.monitor-entry-transition__line {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  height: 1px;
+  background: rgba(83, 77, 142, .16);
+  box-shadow: 0 0 18px rgba(83, 77, 142, .18);
+  transform: translateY(-50%);
+  transition: opacity .1s;
+}
+.monitor-entry-transition__line::after {
+  content: "";
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #534d8e, #df2684 68%, #fff0f7);
+  box-shadow: 0 0 14px rgba(223, 38, 132, .45);
+  animation: monitorEntryProgress .62s cubic-bezier(.65, 0, .35, 1) forwards;
+}
+.monitor-entry-transition.is-opening .monitor-entry-transition__line { opacity: 0; }
+@keyframes monitorEntryProgress {
+  0% { width: 0; }
+  30% { width: 22%; }
+  72% { width: 76%; }
+  100% { width: 100%; }
 }
 .browser-tint {
   position: absolute;
@@ -390,6 +451,91 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   will-change: transform;
 }
 .tablet-placeholder__content { width: 100%; height: 100%; }
+.tablet-placeholder__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.tablet-placeholder[role="button"]:focus-visible {
+  outline: 4px solid #382a83;
+  outline-offset: 5px;
+}
+.tablet-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(38, 31, 44, .62);
+  backdrop-filter: blur(8px);
+  animation: tabletPreviewFadeIn .22s ease both;
+}
+.tablet-preview-window {
+  display: flex;
+  flex-direction: column;
+  width: min(1500px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid rgba(56, 42, 131, .25);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 30px 90px rgba(31, 22, 48, .35);
+  animation: tabletPreviewOpen .32s cubic-bezier(.22, 1, .36, 1) both;
+}
+.tablet-preview-window__header {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  padding: 0 12px 0 22px;
+  border-bottom: 1px solid rgba(56, 42, 131, .12);
+  background: linear-gradient(90deg, #fff, #fbeee6 58%, #ede4e7);
+}
+.tablet-preview-window__header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.tablet-preview-window__close {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-left: auto;
+  padding: 0 0 3px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #df2684;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tablet-preview-window__body {
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+  background: #f8f6f3;
+}
+.tablet-preview-window__body img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 136px);
+  margin: auto;
+  object-fit: contain;
+}
+@keyframes tabletPreviewFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tabletPreviewOpen {
+  from { opacity: 0; transform: translateY(18px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .tablet-physics-object {
   position: absolute;
   left: var(--placeholder-left);
@@ -588,6 +734,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 
 /* Project artwork: Figma reference screenshot per project (hourtention has no visual yet). */
 .project-artwork { position: relative; overflow: hidden; display: grid; place-items: center; background: #f2f2f2; }
+.project-artwork--linked { color: inherit; text-decoration: none; cursor: pointer; }
+.project-artwork--linked:focus-visible { outline: 4px solid #382a83; outline-offset: -6px; }
 .project-artwork__image { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 @media (max-width: 1200px) {

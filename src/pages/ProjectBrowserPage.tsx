@@ -13,6 +13,38 @@ type WindowSlot = {
   zIndex: number;
 };
 
+type EntryTransitionPhase = 'drawing' | 'opening' | 'complete';
+
+function MonitorEntryTransition() {
+  const [phase, setPhase] = useState<EntryTransitionPhase>('drawing');
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPhase('complete');
+      return undefined;
+    }
+
+    const openingTimer = window.setTimeout(() => setPhase('opening'), 620);
+    const completeTimer = window.setTimeout(() => setPhase('complete'), 1300);
+
+    return () => {
+      window.clearTimeout(openingTimer);
+      window.clearTimeout(completeTimer);
+    };
+  }, []);
+
+  if (phase === 'complete') return null;
+
+  return (
+    <div
+      className={`monitor-entry-transition${phase === 'opening' ? ' is-opening' : ''}`}
+      aria-hidden="true"
+    >
+      <span className="monitor-entry-transition__line" />
+    </div>
+  );
+}
+
 export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -217,6 +249,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
       className="browser-page page-shell"
       style={{ '--tint-mid': active.backgroundMid, '--tint-end': active.backgroundEnd } as CSSProperties}
     >
+      <MonitorEntryTransition />
       <div className="browser-tint" aria-hidden="true" />
       <ProjectDecor themeId={active.theme} items={active.decor} />
 

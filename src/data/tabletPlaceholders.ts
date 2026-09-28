@@ -16,6 +16,7 @@ export interface TabletPhysicsItemBase {
 export interface TabletPlaceholderItem extends TabletPhysicsItemBase {
   kind: 'placeholder';
   size: TabletPlaceholderSize;
+  src?: string;
 }
 
 export interface TabletImageItem extends TabletPhysicsItemBase {
@@ -42,6 +43,7 @@ export const tabletPlaceholders: TabletPlaceholderItem[] = [
     spawnX: 0.27,
     spawnOffsetY: 70,
     spawnDelay: 0,
+    src: '/assets/tablet/storyboard-preview.png',
   },
   {
     id: 'tablet-work-medium',

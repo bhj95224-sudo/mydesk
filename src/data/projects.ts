@@ -30,12 +30,56 @@ export type Project = {
   /** Window content image exported from Figma. Undefined = plain color panel (design has no visual yet). */
   contentImage?: string;
   contentBg?: string;
+  externalUrl?: string;
   /** Floating decorative objects shown only while this project is active, at their Figma-specified position. */
   decor: DecorItem[];
 };
 
 // Copy and links are intentionally centralized here for later replacement with final case-study content.
 export const projects: Project[] = [
+  {
+    id: 'sulwhasoo',
+    name: 'Sulwhasoo',
+    displayName: 'Sulwhasoo',
+    category: 'PROJECT',
+    description: '프로젝트 소개 문구와 담당 범위를 입력할 예정입니다.',
+    accent: '#ee7729',
+    idleAccent: '#FCD3B7',
+    borderColor: '#713f13',
+    theme: 'sulwhasoo',
+    titleFont: '"Cormorant Garamond", Georgia, serif',
+    backgroundMid: '#f5e0cc',
+    backgroundEnd: '#ffc266',
+    progressTrack: '#DFC4B3',
+    progressSegment: '#E37D34',
+    contentImage: '/assets/projects/sulwhasoo-project-preview.jpeg',
+    externalUrl: 'https://harperppppppp.github.io/sulwhasoo/',
+    decor: [
+      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '59.78%', rotate: -129.31, flipY: true },
+      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '42.37%', rotate: -50.69 },
+      { src: '/assets/projects/sulwhasoo-sprig.png', width: '23.06vh', height: '23.06vh', left: '21.67%', top: '38.76%' },
+      { src: '/assets/projects/sulwhasoo-sprig.png', width: '15.37vh', height: '15.37vh', left: '67.76%', top: '81.07%' },
+    ],
+  },
+  {
+    id: 'jaduya',
+    name: '자두야',
+    displayName: '자두야',
+    category: 'MOBILE APP',
+    description: '혼자 사는 사람의 생활 관리를 돕는 모바일 서비스입니다. 포트폴리오에 표시할 개인 기여 범위는 확정 후 추가합니다.',
+    accent: '#b43936',
+    idleAccent: '#E8C3C2',
+    borderColor: '#7c0e0b',
+    theme: 'jaduya',
+    titleFont: '"KERIS KEDU", "Pretendard", sans-serif',
+    backgroundMid: '#ffefc0',
+    backgroundEnd: '#ff7979',
+    progressTrack: '#F0AF64',
+    progressSegment: '#B43936',
+    contentImage: '/assets/projects/jaduya-content.png',
+    externalUrl: 'https://jaduya.vercel.app/login',
+    decor: [],
+  },
   {
     id: 'beplain',
     name: 'beplain',
@@ -60,29 +104,6 @@ export const projects: Project[] = [
     ],
   },
   {
-    id: 'sulwhasoo',
-    name: 'Sulwhasoo',
-    displayName: 'Sulwhasoo',
-    category: 'PROJECT',
-    description: '프로젝트 소개 문구와 담당 범위를 입력할 예정입니다.',
-    accent: '#ee7729',
-    idleAccent: '#FCD3B7',
-    borderColor: '#713f13',
-    theme: 'sulwhasoo',
-    titleFont: '"Cormorant Garamond", Georgia, serif',
-    backgroundMid: '#f5e0cc',
-    backgroundEnd: '#ffc266',
-    progressTrack: '#DFC4B3',
-    progressSegment: '#E37D34',
-    contentImage: '/assets/projects/sulwhasoo-content.png',
-    decor: [
-      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '59.78%', rotate: -129.31, flipY: true },
-      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '42.37%', rotate: -50.69 },
-      { src: '/assets/projects/sulwhasoo-sprig.png', width: '23.06vh', height: '23.06vh', left: '21.67%', top: '38.76%' },
-      { src: '/assets/projects/sulwhasoo-sprig.png', width: '15.37vh', height: '15.37vh', left: '67.76%', top: '81.07%' },
-    ],
-  },
-  {
     id: 'hourtention',
     name: 'hourtention',
     displayName: 'hourtention',
@@ -98,24 +119,6 @@ export const projects: Project[] = [
     progressTrack: '#F9BA8F',
     progressSegment: '#7145F0',
     contentBg: '#c1b0f2',
-    decor: [],
-  },
-  {
-    id: 'jaduya',
-    name: '자두야',
-    displayName: '자두야',
-    category: 'MOBILE APP',
-    description: '혼자 사는 사람의 생활 관리를 돕는 모바일 서비스입니다. 포트폴리오에 표시할 개인 기여 범위는 확정 후 추가합니다.',
-    accent: '#b43936',
-    idleAccent: '#E8C3C2',
-    borderColor: '#7c0e0b',
-    theme: 'jaduya',
-    titleFont: '"KERIS KEDU", "Pretendard", sans-serif',
-    backgroundMid: '#ffefc0',
-    backgroundEnd: '#ff7979',
-    progressTrack: '#F0AF64',
-    progressSegment: '#B43936',
-    contentImage: '/assets/projects/jaduya-content.png',
     decor: [],
   },
 ];
