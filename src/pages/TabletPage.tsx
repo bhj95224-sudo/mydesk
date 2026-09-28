@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
 import { TabletPlaceholder } from '../components/TabletPlaceholder';
-import { tabletPlaceholders } from '../data/tabletPlaceholders';
+import { TabletPhysicsObject } from '../components/TabletPhysicsObject';
+import { tabletPhysicsItems } from '../data/tabletPlaceholders';
 import { useTabletPhysics } from '../hooks/useTabletPhysics';
 
 export function TabletPage() {
   const [isLeaving, setIsLeaving] = useState(false);
   const physicsStageRef = useRef<HTMLElement>(null);
 
-  useTabletPhysics(physicsStageRef, tabletPlaceholders);
+  useTabletPhysics(physicsStageRef, tabletPhysicsItems);
 
   return (
     <main
@@ -34,9 +35,13 @@ export function TabletPage() {
       </header>
 
       <section ref={physicsStageRef} className="tablet-physics-stage" aria-label="태블릿 작업물 영역">
-        {tabletPlaceholders.map((item) => (
-          <TabletPlaceholder key={item.id} item={item} />
-        ))}
+        {tabletPhysicsItems.map((item) =>
+          item.kind === 'placeholder' ? (
+            <TabletPlaceholder key={item.id} item={item} />
+          ) : (
+            <TabletPhysicsObject key={item.id} item={item} />
+          ),
+        )}
       </section>
     </main>
   );

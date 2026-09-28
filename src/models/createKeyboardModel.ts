@@ -311,6 +311,13 @@ export function createKeyboardLookDevLights(): THREE.Group {
   return group;
 }
 
+// NOT cached: a PMREMGenerator's output texture is tied to the WebGLRenderTarget of the
+// renderer that built it and renders blank with any other renderer -- see
+// createDeskSetupModel.ts's createCurvedBirchPlyDeskSetupEnvironment for the full story.
+// (createKeyboardModel() itself is also not cached, for a separate reason: the interactive
+// /keyboard page mutates its key meshes' transforms during press animations -- see
+// keyboardInteractions.ts -- so sharing that instance would let a key get stuck visually
+// "pressed" the next time the model is built.)
 export function createKeyboardEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const scene = new THREE.Scene();
@@ -334,14 +341,8 @@ export function frameKeyboardCamera(
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const margin = opts.margin ?? 1.1;
-  const maxDim = Math.max(size.x, size.y, size.z) * margin;
-  // Fit the bounding SPHERE (not just the vertical FOV) so a portrait/narrow viewport
-  // doesn't clip a wide object -- a max-dimension-vs-vertical-fov fit silently assumes
-  // aspect >= 1 and crops horizontally the moment the canvas is taller than it is wide.
   const vFov = (camera.fov * Math.PI) / 180;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-  const limitingFov = Math.min(vFov, hFov);
-  const distance = (maxDim / 2) / Math.sin(limitingFov / 2);
 
   const az = (opts.azimuthDeg * Math.PI) / 180;
   const el = (opts.elevationDeg * Math.PI) / 180;
@@ -351,9 +352,30 @@ export function frameKeyboardCamera(
   // stretches/skews instead of framing cleanly). Swap to a horizontal up reference
   // whenever dir is close to straight up/down.
   camera.up.set(0, Math.abs(dir.y) > 0.999 ? 0 : 1, Math.abs(dir.y) > 0.999 ? -1 : 0);
+
+  const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize();
+  const screenUp = new THREE.Vector3().crossVectors(right, dir).normalize();
+  const halfSize = size.multiplyScalar(0.5);
+  const halfWidth =
+    Math.abs(right.x) * halfSize.x +
+    Math.abs(right.y) * halfSize.y +
+    Math.abs(right.z) * halfSize.z;
+  const halfHeight =
+    Math.abs(screenUp.x) * halfSize.x +
+    Math.abs(screenUp.y) * halfSize.y +
+    Math.abs(screenUp.z) * halfSize.z;
+  const halfDepth =
+    Math.abs(dir.x) * halfSize.x +
+    Math.abs(dir.y) * halfSize.y +
+    Math.abs(dir.z) * halfSize.z;
+  const distance = Math.max(
+    halfWidth / Math.tan(hFov / 2),
+    halfHeight / Math.tan(vFov / 2),
+  ) * margin;
+
   camera.position.copy(center).addScaledVector(dir, distance);
-  camera.near = Math.max(0.01, distance - maxDim);
-  camera.far = distance + maxDim * 2;
+  camera.near = Math.max(0.01, distance - halfDepth * 2);
+  camera.far = distance + halfDepth * 4;
   camera.lookAt(center);
   camera.updateProjectionMatrix();
 }

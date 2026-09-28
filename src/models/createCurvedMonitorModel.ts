@@ -75,7 +75,21 @@ function alignedCylinder(from: THREE.Vector3, to: THREE.Vector3, radiusStart: nu
   return mesh;
 }
 
+// Cached module-wide so the desk-overlay thumbnail reuses the same built group instead of
+// rebuilding it on every mount. Callers must not dispose this group's geometry/materials
+// since the same instance is shared.
+const monitorModelCache = new Map<string, THREE.Group>();
+
 export function createCurvedAllInOneMonitorModel(options: ProceduralModelOptions = {}): THREE.Group {
+  const cacheKey = JSON.stringify(options);
+  const cached = monitorModelCache.get(cacheKey);
+  if (cached) return cached;
+  const built = buildCurvedAllInOneMonitorModel(options);
+  monitorModelCache.set(cacheKey, built);
+  return built;
+}
+
+function buildCurvedAllInOneMonitorModel(options: ProceduralModelOptions = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = 'Curved All-in-One Monitor';
 
@@ -202,6 +216,9 @@ export function createCurvedAllInOneMonitorLookDevLights(): THREE.Group {
   return group;
 }
 
+// NOT cached: a PMREMGenerator's output texture is tied to the WebGLRenderTarget of the
+// renderer that built it and renders blank with any other renderer -- see
+// createDeskSetupModel.ts's createCurvedBirchPlyDeskSetupEnvironment for the full story.
 export function createCurvedAllInOneMonitorEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const scene = new THREE.Scene();

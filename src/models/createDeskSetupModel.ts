@@ -730,10 +730,26 @@ function makeAttachmentEndpoint(attachment: unknown): AttachmentEndpoint | null 
   };
 }
 
+// The desk is the heaviest procedural build in the app (curved-edge geometry plus five
+// 512x512 canvas-painted PBR maps), and DeskPage remounts it every time the user leaves
+// and returns. Caching the built group means that cost is paid once per page load instead
+// of once per visit -- callers must not dispose this group's geometry/materials since the
+// same instance is handed out to every caller.
+const deskSetupModelCache = new Map<string, THREE.Group>();
+
+export function createCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {}): THREE.Group {
+  const cacheKey = JSON.stringify(options);
+  const cached = deskSetupModelCache.get(cacheKey);
+  if (cached) return cached;
+  const built = buildCurvedBirchPlyDeskSetupModel(options);
+  deskSetupModelCache.set(cacheKey, built);
+  return built;
+}
+
 // Generated from ObjectSculptSpec target: Curved Birch Ply Desk Setup
 // Sculpt build pass: optimization-pass
 // This factory is intentionally pass-gated. Finish browser screenshot review before unlocking deeper passes.
-export function createCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {}): THREE.Group {
+function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = "Curved Birch Ply Desk Setup";
   root.userData.reconstructionEvidence = {"itemFamily": null, "subtype": null, "componentAdapter": null, "route": null, "exactnessTier": null, "referenceCamera": {"solved": false, "fovDegrees": 40.0, "aspect": 1.0, "orientation": {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}, "positionHint": [0.0, 0.0, 3.0], "note": "For likeness work, solve the reference camera (forge/stage1_intake/solve_camera_pose.py) so the review render aligns with the photo and the reference can be projected. Confirm by overlay review."}, "approximationNotes": []};
@@ -1878,6 +1894,11 @@ export function createCurvedBirchPlyDeskSetupLookDevLights(
 // PBR materials (clearcoat/iridescence/transmission/anisotropy) need an environment
 // map to visually behave as intended — call this once per renderer and assign the
 // result to scene.environment before rendering. No external HDR asset required.
+// NOT cached: a PMREMGenerator's output texture is backed by a WebGLRenderTarget owned by
+// the renderer that built it, so reusing it with a later, different WebGLRenderer instance
+// (each mount creates a fresh renderer) renders as a dead/blank environment -- the exact
+// "flat, washed-out" look this renderer's ACES+sRGB setup exists to avoid. Must build fresh
+// per renderer.
 export function createCurvedBirchPlyDeskSetupEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const texture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
