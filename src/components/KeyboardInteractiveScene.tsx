@@ -12,21 +12,25 @@ import { attachKeyboardInteractions } from '../models/keyboardInteractions';
 type KeyboardInteractiveSceneProps = {
   className?: string;
   onReady?: () => void;
+  onKeyPress?: (key: string) => void;
+  onBackgroundClick?: () => void;
 };
 
+// Fixed rule: the keyboard is always shot top-down. Any framing adjustment (like the
+// left-pan below) must only translate the camera position and its lookAt target together --
+// azimuth/elevation must never change.
 const AZIMUTH_DEG = 0;
 const ELEVATION_DEG = 89.5;
 const CAMERA_MARGIN = 1.04;
-// Esc's left edge sits at local x = -46.25 (see colToX(0,1) in createKeyboardModel.ts);
-// F1's left edge sits at x = -36.0 (colToX(2,1) minus half its keycap width). Framing from
-// this x instead of the model's true left edge crops Esc and the gap before F1 out of view,
-// while the right edge stays at the model's own true bound -- so nothing on the right side
-// gets pushed out of frame the way a plain post-hoc pan would (panning a frame that's
-// already tight-fit to the whole keyboard just shifts the clipping from one side to the
-// other; it doesn't add room).
-const VISIBLE_LEFT_X = -41.0;
+// Plain parallel pan (not a re-zoom): after framing the full (nav-cluster-less) keyboard
+// normally, shift the camera position and its lookAt target together along world +X by this
+// many local units, keeping distance/angle identical. Positive X is away from Esc (see
+// colToX in createKeyboardModel.ts), so this pushes Esc past the container's left edge
+// without changing how big any key looks. Tuned visually against the actual
+// `.keyboard-model-stage` box; some clipping into the next key is acceptable.
+const PAN_X = 13.5;
 
-export function KeyboardInteractiveScene({ className, onReady }: KeyboardInteractiveSceneProps) {
+export function KeyboardInteractiveScene({ className, onReady, onKeyPress, onBackgroundClick }: KeyboardInteractiveSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +41,8 @@ export function KeyboardInteractiveScene({ className, onReady }: KeyboardInterac
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     configureKeyboardRenderer(renderer);
-    renderer.domElement.setAttribute('aria-label', '클릭할 수 있는 3D 키보드');
+    renderer.domElement.setAttribute('aria-label', '클릭할 수 있는 3D 키보드. 색이 칠해진 키를 누르면 관련 활용 정보가 표시됩니다.');
+    renderer.domElement.tabIndex = 0;
     renderer.domElement.style.touchAction = 'none';
     container.appendChild(renderer.domElement);
 
@@ -47,11 +52,11 @@ export function KeyboardInteractiveScene({ className, onReady }: KeyboardInterac
     scene.environmentIntensity = 0.55;
 
     const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 1000);
-    const model = createKeyboardModel({});
+    const model = createKeyboardModel({ includeNavCluster: false, highlightPressableKeys: true });
     scene.add(model);
     scene.add(createKeyboardLookDevLights());
 
-    const interactions = attachKeyboardInteractions(renderer, camera, model);
+    const interactions = attachKeyboardInteractions(renderer, camera, model, onKeyPress, onBackgroundClick);
 
     const resize = () => {
       const { clientWidth, clientHeight } = container;
@@ -59,23 +64,19 @@ export function KeyboardInteractiveScene({ className, onReady }: KeyboardInterac
       renderer.setSize(clientWidth, clientHeight);
       camera.aspect = clientWidth / clientHeight;
 
-      // Frame against a box that starts at F1's left edge instead of the model's true left
-      // edge (Esc) -- see VISIBLE_LEFT_X above. This proxy mesh is never added to the scene;
-      // it exists only so frameKeyboardCamera can read its geometry bounds.
-      const fullBox = new THREE.Box3().setFromObject(model);
-      const cropSize = fullBox.getSize(new THREE.Vector3());
-      cropSize.x = fullBox.max.x - VISIBLE_LEFT_X;
-      const cropCenter = fullBox.getCenter(new THREE.Vector3());
-      cropCenter.x = (VISIBLE_LEFT_X + fullBox.max.x) / 2;
-      const cropProxy = new THREE.Mesh(new THREE.BoxGeometry(cropSize.x, cropSize.y, cropSize.z));
-      cropProxy.position.copy(cropCenter);
-      cropProxy.updateMatrixWorld(true);
-
-      frameKeyboardCamera(camera, cropProxy, {
+      frameKeyboardCamera(camera, model, {
         azimuthDeg: AZIMUTH_DEG,
         elevationDeg: ELEVATION_DEG,
         margin: CAMERA_MARGIN,
       });
+
+      // Parallel pan: translate the camera and its lookAt target together by the same
+      // vector, so the viewing angle (top-down) is untouched -- only the framed window
+      // slides sideways, exactly like panning the container itself.
+      const panOffset = new THREE.Vector3(PAN_X, 0, 0);
+      camera.position.add(panOffset);
+      const center = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+      camera.lookAt(center.add(panOffset));
     };
 
     resize();
@@ -124,7 +125,7 @@ export function KeyboardInteractiveScene({ className, onReady }: KeyboardInterac
         container.removeChild(renderer.domElement);
       }
     };
-  }, [onReady]);
+  }, [onReady, onKeyPress, onBackgroundClick]);
 
   return <div ref={containerRef} className={className} />;
 }

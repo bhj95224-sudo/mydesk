@@ -1,10 +1,10 @@
 import gsap from 'gsap';
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, WheelEvent as ReactWheelEvent } from 'react';
 import { AnimatedContent } from '../components/AnimatedContent';
 import { ProjectArtwork } from '../components/ProjectArtwork';
 import { ProjectDecor } from '../components/ProjectDecor';
-import { ProjectDock } from '../components/ProjectDock';
+import { ProjectSlidesWindow } from '../components/ProjectSlidesWindow';
 import { projects, type Project } from '../data/projects';
 
 type WindowSlot = {
@@ -13,20 +13,22 @@ type WindowSlot = {
   zIndex: number;
 };
 
-export function ProjectBrowserPage() {
+export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [isLeaving, setIsLeaving] = useState(false);
-  const [highlightedDockId, setHighlightedDockId] = useState<string | null>(projects[0]?.id ?? null);
   const [stackOrder, setStackOrder] = useState(() => projects.map((project) => project.id));
+  const [slidesRevealToken, setSlidesRevealToken] = useState(0);
   const windowRefs = useRef<Record<string, HTMLElement | null>>({});
   const swapTimeline = useRef<gsap.core.Timeline | null>(null);
   const swapInProgress = useRef(false);
+  const wheelDelta = useRef(0);
+  const wheelResetTimer = useRef<number | null>(null);
 
   const active = projects[activeIndex];
 
   useEffect(() => () => {
     swapTimeline.current?.kill();
+    if (wheelResetTimer.current !== null) window.clearTimeout(wheelResetTimer.current);
   }, []);
 
   const chooseProject = (index: number) => {
@@ -34,15 +36,14 @@ export function ProjectBrowserPage() {
     const targetPosition = stackOrder.indexOf(selected.id);
 
     if (targetPosition <= 0) {
-      setHighlightedDockId(selected.id);
       setActiveIndex(index);
       setDetailsOpen(false);
+      setSlidesRevealToken((token) => token + 1);
       return;
     }
 
     if (swapInProgress.current) return;
-
-    setHighlightedDockId(selected.id);
+    setSlidesRevealToken((token) => token + 1);
 
     const [frontProjectId, ...restOfStack] = stackOrder;
     const remainingProjects = restOfStack.filter((projectId) => projectId !== selected.id);
@@ -184,18 +185,53 @@ export function ProjectBrowserPage() {
     });
   };
 
+  const handleProjectWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    if (projects.length < 2 || swapInProgress.current) return;
+
+    const normalizedDelta = event.deltaMode === 1
+      ? event.deltaY * 16
+      : event.deltaMode === 2
+        ? event.deltaY * window.innerHeight
+        : event.deltaY;
+
+    wheelDelta.current += normalizedDelta;
+    if (wheelResetTimer.current !== null) window.clearTimeout(wheelResetTimer.current);
+    wheelResetTimer.current = window.setTimeout(() => {
+      wheelDelta.current = 0;
+      wheelResetTimer.current = null;
+    }, 140);
+
+    if (Math.abs(wheelDelta.current) < 40) return;
+
+    event.preventDefault();
+    const targetPosition = 1;
+    const targetProjectId = stackOrder[targetPosition];
+    wheelDelta.current = 0;
+
+    const targetIndex = projects.findIndex((project) => project.id === targetProjectId);
+    if (targetIndex >= 0) chooseProject(targetIndex);
+  };
+
   return (
     <main
-      className={`browser-page page-shell${isLeaving ? ' is-leaving' : ''}`}
+      className="browser-page page-shell"
       style={{ '--tint-mid': active.backgroundMid, '--tint-end': active.backgroundEnd } as CSSProperties}
-      onAnimationEnd={(event) => {
-        if (isLeaving && event.target === event.currentTarget) {
-          window.location.hash = '/';
-        }
-      }}
     >
       <div className="browser-tint" aria-hidden="true" />
       <ProjectDecor themeId={active.theme} items={active.decor} />
+
+      <div
+        className="project-progress"
+        aria-hidden="true"
+        style={{
+          '--progress-track': active.progressTrack,
+          '--progress-segment': active.progressSegment,
+          '--progress-segment-height': `${100 / projects.length}%`,
+          '--progress-position': `${(activeIndex / projects.length) * 100}%`,
+        } as CSSProperties}
+      >
+        <span className="project-progress__thumb" />
+      </div>
 
       <header className="browser-header">
         <a
@@ -204,7 +240,7 @@ export function ProjectBrowserPage() {
           aria-label="책상 화면으로 돌아가기"
           onClick={(event) => {
             event.preventDefault();
-            if (!isLeaving) setIsLeaving(true);
+            onBackToDesk();
           }}
         >
           <span className="back-arrow" aria-hidden="true">←</span>
@@ -226,16 +262,14 @@ export function ProjectBrowserPage() {
           </button>
           {detailsOpen && <div className="project-details" id="project-details"><strong>{active.displayName}</strong><p>{active.description}</p><small>프로젝트 상세 페이지와 최종 기여 범위는 콘텐츠 확정 후 연결할 예정입니다.</small></div>}
 
-          <ProjectDock
-            projects={projects}
-            activeId={active.id}
-            highlightedId={highlightedDockId}
-            onSelect={(id) => chooseProject(projects.findIndex((project) => project.id === id))}
-          />
         </section>
 
-        <section className="window-stage" aria-label="겹쳐진 프로젝트 창">
-          {projects.map((project) => {
+        <section
+          className="window-stage"
+          aria-label="겹쳐진 프로젝트 창"
+          onWheel={handleProjectWheel}
+        >
+          {projects.map((project, projectIndex) => {
             const stackPosition = stackOrder.indexOf(project.id);
             const depth = projects.length - 1 - stackPosition;
 
@@ -245,6 +279,7 @@ export function ProjectBrowserPage() {
                 project={project}
                 depth={depth}
                 active={project.id === active.id}
+                onSelect={() => chooseProject(projectIndex)}
                 windowRef={(node) => {
                   windowRefs.current[project.id] = node;
                 }}
@@ -253,6 +288,7 @@ export function ProjectBrowserPage() {
           })}
         </section>
       </div>
+      <ProjectSlidesWindow project={active} revealToken={slidesRevealToken} />
     </main>
   );
 }
@@ -261,11 +297,13 @@ function ProjectWindow({
   project,
   depth,
   active,
+  onSelect,
   windowRef,
 }: {
   project: Project;
   depth: number;
   active: boolean;
+  onSelect: () => void;
   windowRef: (node: HTMLElement | null) => void;
 }) {
   return (
@@ -274,11 +312,17 @@ function ProjectWindow({
       className={`project-window project-window--${project.theme} project-window--depth-${depth} ${active ? 'is-front' : ''}`}
       style={{ '--project-accent': project.accent, '--project-border': project.borderColor } as CSSProperties}
     >
-      <div className="project-window__bar">
+      <button
+        className="project-window__bar"
+        type="button"
+        onClick={onSelect}
+        aria-label={`${project.displayName} 프로젝트를 맨 앞으로 가져오기`}
+        aria-pressed={active}
+      >
         <span className="project-window__status" aria-hidden="true" />
         <span className="project-window__title" style={{ fontFamily: project.titleFont }}>{project.name}</span>
         <span className="project-window__action" aria-hidden="true">↗</span>
-      </div>
+      </button>
       <ProjectArtwork project={project} />
     </article>
   );
