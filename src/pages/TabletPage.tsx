@@ -7,21 +7,21 @@ import { useTabletPhysics } from '../hooks/useTabletPhysics';
 export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   const physicsStageRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'hover' | 'manual' | null>(null);
 
   useTabletPhysics(physicsStageRef, tabletPhysicsItems);
 
   useEffect(() => {
-    if (!previewOpen) return undefined;
+    if (!previewMode) return undefined;
 
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewOpen(false);
+      if (event.key === 'Escape') setPreviewMode(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    closeButtonRef.current?.focus();
+    if (previewMode === 'manual') closeButtonRef.current?.focus();
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewOpen]);
+  }, [previewMode]);
 
   return (
     <main className="tablet-page page-shell">
@@ -46,7 +46,9 @@ export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
             <TabletPlaceholder
               key={item.id}
               item={item}
-              onActivate={item.size === 'large' && item.src ? () => setPreviewOpen(true) : undefined}
+              onActivate={item.size === 'large' && item.src ? () => setPreviewMode('manual') : undefined}
+              onHoverStart={item.size === 'large' && item.src ? () => setPreviewMode('hover') : undefined}
+              onHoverEnd={item.size === 'large' && item.src ? () => setPreviewMode((mode) => mode === 'hover' ? null : mode) : undefined}
             />
           ) : (
             <TabletPhysicsObject key={item.id} item={item} />
@@ -54,25 +56,31 @@ export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
         )}
       </section>
 
-      {previewOpen && (
+      {previewMode && (
         <div
-          className="tablet-preview-backdrop"
+          className={`tablet-preview-backdrop${previewMode === 'hover' ? ' tablet-preview-backdrop--hover' : ''}`}
           onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setPreviewOpen(false);
+            if (event.target === event.currentTarget) setPreviewMode(null);
           }}
         >
-          <section className="tablet-preview-window" role="dialog" aria-modal="true" aria-labelledby="tablet-preview-title">
+          <section className="tablet-preview-window" role="dialog" aria-modal={previewMode === 'manual'} aria-labelledby="tablet-preview-title">
             <header className="tablet-preview-window__header">
-              <h2 id="tablet-preview-title">SULWHASOO STORYBOARD</h2>
-              <button
-                ref={closeButtonRef}
-                className="tablet-preview-window__close"
-                type="button"
-                aria-label="전체 이미지 닫기"
-                onClick={() => setPreviewOpen(false)}
-              >
-                ×
-              </button>
+              <span className="tablet-preview-window__eyebrow">STORYBOARD</span>
+              <h2 id="tablet-preview-title">Sulwhasoo</h2>
+              <div className="tablet-preview-window__actions">
+                <span>PROJECT PREVIEW</span>
+                {previewMode === 'manual' && (
+                  <button
+                    ref={closeButtonRef}
+                    className="tablet-preview-window__close"
+                    type="button"
+                    aria-label="전체 이미지 닫기"
+                    onClick={() => setPreviewMode(null)}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </header>
             <div className="tablet-preview-window__body">
               <img src="/assets/tablet/storyboard-preview.png" alt="한국 홍보 영상 스토리보드 전체 이미지" />
