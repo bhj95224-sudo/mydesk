@@ -53,13 +53,13 @@ function curvedPanelGeometry(width: number, height: number, thickness: number, r
 
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: 1 });
   // shape's local (x, y) -> world (x, z); extrude depth (local z) -> world y (height).
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, 0, 0);
-  // after rotateX(-90deg): local (x, y_shape, z_extrude) -> (x, z_extrude, -y_shape)
-  // so world Y currently holds the extrude axis (0..height) and world Z holds -shapeY.
-  // Flip Z back to positive-forward and center Y on [-height/2, height/2].
-  geometry.scale(1, 1, -1);
-  geometry.translate(0, -height / 2, 0);
+  // rotateX(+90deg): local (x, y_shape, z_extrude) -> (x, -z_extrude, y_shape), so world Z is
+  // shapeY (positive-forward) and world Y is the extrude axis (-height..0); center Y on
+  // [-height/2, height/2]. A pure rotation -- the old rotateX(-90) + scale(1, 1, -1) mirror
+  // flipped triangle winding, so front-face culling dropped the outer faces and the back of
+  // the monitor rendered see-through.
+  geometry.rotateX(Math.PI / 2);
+  geometry.translate(0, height / 2, 0);
   geometry.computeVertexNormals();
   return geometry;
 }

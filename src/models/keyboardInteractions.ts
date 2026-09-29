@@ -14,7 +14,11 @@ interface KeyAnim {
   phaseStart: number;
 }
 
-export type UpdateFn = ((now: number) => void) & { dispose: () => void };
+export type UpdateFn = ((now: number) => void) & {
+  dispose: () => void;
+  // Plays the press motion on a random idle pressable key -- motion only, no onKeyPress.
+  pressRandomKey: () => void;
+};
 
 export function attachKeyboardInteractions(
   renderer: THREE.WebGLRenderer,
@@ -140,6 +144,14 @@ export function attachKeyboardInteractions(
         }
       }
     }
+  };
+
+  update.pressRandomKey = () => {
+    const idle = [...anims.values()].filter((anim) => anim.state === 'idle');
+    if (idle.length === 0) return;
+    const anim = idle[Math.floor(Math.random() * idle.length)];
+    anim.state = 'pressing';
+    anim.phaseStart = performance.now();
   };
 
   update.dispose = () => {

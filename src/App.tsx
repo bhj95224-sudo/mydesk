@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { IntroPage } from './pages/IntroPage';
 import { ProjectBrowserPage } from './pages/ProjectBrowserPage';
 import { TabletPage } from './pages/TabletPage';
-
+import { DeskBrightnessLab } from './pages/DeskBrightnessLab';
 const DeskPage = lazy(() =>
   import('./pages/DeskPage').then((module) => ({ default: module.DeskPage })),
 );
@@ -21,6 +21,12 @@ function getRoute(): Route {
 }
 
 export default function App() {
+  // Standalone throwaway tool, kept out of the real route/intro state machine below --
+  // see DeskBrightnessLab.tsx.
+  if (window.location.hash === '#/lab') return <DeskBrightnessLab />;  return <AppRoutes />;
+}
+
+function AppRoutes() {
   const [route, setRoute] = useState<Route>(getRoute);
   const routeRef = useRef(route);
   const [introDone, setIntroDone] = useState(route !== 'desk');

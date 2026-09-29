@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BackToDeskLink } from '../components/BackToDeskLink';
 import { TabletPlaceholder } from '../components/TabletPlaceholder';
 import { TabletPhysicsObject } from '../components/TabletPhysicsObject';
 import { tabletPhysicsItems } from '../data/tabletPlaceholders';
@@ -26,18 +27,7 @@ export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   return (
     <main className="tablet-page page-shell">
       <header className="browser-header tablet-header">
-        <a
-          className="back-link"
-          href="#/"
-          aria-label="책상 화면으로 돌아가기"
-          onClick={(event) => {
-            event.preventDefault();
-            onBackToDesk();
-          }}
-        >
-          <span className="back-arrow" aria-hidden="true">←</span>
-          BACK TO DESK
-        </a>
+        <BackToDeskLink onBackToDesk={onBackToDesk} />
       </header>
 
       <section ref={physicsStageRef} className="tablet-physics-stage" aria-label="태블릿 작업물 영역">

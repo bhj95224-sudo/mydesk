@@ -14,24 +14,82 @@ type KeyboardInteractiveSceneProps = {
   onReady?: () => void;
   onKeyPress?: (key: string) => void;
   onBackgroundClick?: () => void;
+  // Starts the entrance camera move (KEYBOARD_CAMERA_INTRO_FROM -> KEYBOARD_CAMERA_DEFAULTS).
+  // Until then the camera holds the FROM framing -- the page flips this once its loader
+  // is gone so the move is actually seen.
+  playCameraIntro?: boolean;
 };
 
-// Fixed rule: the keyboard is always shot top-down. Any framing adjustment (like the
-// left-pan below) must only translate the camera position and its lookAt target together --
-// azimuth/elevation must never change.
-const AZIMUTH_DEG = 0;
-const ELEVATION_DEG = 89.5;
-const CAMERA_MARGIN = 1.04;
-// Plain parallel pan (not a re-zoom): after framing the full (nav-cluster-less) keyboard
-// normally, shift the camera position and its lookAt target together along world +X by this
-// many local units, keeping distance/angle identical. Positive X is away from Esc (see
-// colToX in createKeyboardModel.ts), so this pushes Esc past the container's left edge
-// without changing how big any key looks. Tuned visually against the actual
-// `.keyboard-model-stage` box; some clipping into the next key is acceptable.
-const PAN_X = 13.5;
+export type KeyboardCameraSettings = {
+  azimuthDeg: number;
+  elevationDeg: number;
+  fov: number;
+  // >1 shrinks the keyboard in frame.
+  margin: number;
+  // Parallel pan (camera + lookAt target move together, angle unchanged), in model units.
+  // +X moves the keyboard left on screen, +Z moves it up (for a top-down shot).
+  panX: number;
+  panZ: number;
+};
 
-export function KeyboardInteractiveScene({ className, onReady, onKeyPress, onBackgroundClick }: KeyboardInteractiveSceneProps) {
+// On entering the page the camera starts top-down (FROM) and eases into the angled view
+// (DEFAULTS), then stays there.
+export const KEYBOARD_CAMERA_INTRO_FROM: KeyboardCameraSettings = {
+  azimuthDeg: 0,
+  elevationDeg: 89.5,
+  fov: 32,
+  margin: 1.1,
+  panX: 4,
+  panZ: 0,
+};
+export const KEYBOARD_CAMERA_DEFAULTS: KeyboardCameraSettings = {
+  azimuthDeg: 18.5,
+  elevationDeg: 42.5,
+  fov: 10,
+  margin: 1.13,
+  panX: 12,
+  panZ: -2,
+};
+const CAMERA_INTRO_DELAY_MS = 150;
+const CAMERA_INTRO_MS = 1600;
+// Rounds the width-fit/height-fit switch in frameKeyboardCamera so the dolly speed doesn't
+// jump mid-move (see smoothFit there).
+const CAMERA_FIT_SMOOTHING = 0.15;
+
+function lerpCameraSettings(from: KeyboardCameraSettings, to: KeyboardCameraSettings, t: number): KeyboardCameraSettings {
+  const lerp = (a: number, b: number) => a + (b - a) * t;
+  return {
+    azimuthDeg: lerp(from.azimuthDeg, to.azimuthDeg),
+    elevationDeg: lerp(from.elevationDeg, to.elevationDeg),
+    fov: lerp(from.fov, to.fov),
+    margin: lerp(from.margin, to.margin),
+    panX: lerp(from.panX, to.panX),
+    panZ: lerp(from.panZ, to.panZ),
+  };
+}
+
+// Smootherstep: zero speed AND zero acceleration at both ends, so the move eases out of the
+// top-down view without the jolt a sine ease has (its acceleration jumps from 0 to max on
+// the first frame), and its peak speed is lower than easeInOutCubic's.
+function smootherStep(t: number): number {
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+// Pressable keys stand this much taller than the rest (model units; a keycap is 2.5).
+const PRESSABLE_KEY_RAISE = 2.5;
+// Idle "someone is typing" press on a random pressable key -- motion only, no card.
+const AUTO_PRESS_INTERVAL_MS = 8000;
+
+export function KeyboardInteractiveScene({
+  className,
+  onReady,
+  onKeyPress,
+  onBackgroundClick,
+  playCameraIntro = true,
+}: KeyboardInteractiveSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Read by the render loop.
+  const playCameraIntroRef = useRef(playCameraIntro);
+  playCameraIntroRef.current = playCameraIntro;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -52,31 +110,100 @@ export function KeyboardInteractiveScene({ className, onReady, onKeyPress, onBac
     scene.environmentIntensity = 0.55;
 
     const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 1000);
-    const model = createKeyboardModel({ includeNavCluster: false, highlightPressableKeys: true });
+    const model = createKeyboardModel({
+      includeNavCluster: false,
+      highlightPressableKeys: true,
+      pressableKeyRaise: PRESSABLE_KEY_RAISE,
+    });
     scene.add(model);
     scene.add(createKeyboardLookDevLights());
 
     const interactions = attachKeyboardInteractions(renderer, camera, model, onKeyPress, onBackgroundClick);
 
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let introStart: number | null = null;
+    let introDone = reduceMotion;
+    // What the camera should show this frame: the entrance move (held at FROM until
+    // playCameraIntro, then eased to DEFAULTS).
+    // Eased 0..1 progress of the move (0 = FROM, 1 = DEFAULTS); drives the fit correction.
+    let introEase = introDone ? 1 : 0;
+    const currentCameraSettings = (now: number): KeyboardCameraSettings => {
+      if (introDone) {
+        introEase = 1;
+        return KEYBOARD_CAMERA_DEFAULTS;
+      }
+      if (!playCameraIntroRef.current) return KEYBOARD_CAMERA_INTRO_FROM;
+      introStart ??= now;
+      const t = Math.min(1, Math.max(0, (now - introStart - CAMERA_INTRO_DELAY_MS) / CAMERA_INTRO_MS));
+      if (t >= 1) {
+        introDone = true;
+        introEase = 1;
+        return KEYBOARD_CAMERA_DEFAULTS;
+      }
+      introEase = smootherStep(t);
+      return lerpCameraSettings(KEYBOARD_CAMERA_INTRO_FROM, KEYBOARD_CAMERA_DEFAULTS, introEase);
+    };
+
+    // smoothFit makes the keyboard a bit smaller than a hard fit; scale the margin back by
+    // the hard/smooth distance ratio at the two ends (blended by progress) so the start and
+    // end framings match the tuned values exactly. Depends on aspect -- recomputed in resize().
+    const scratchCamera = new THREE.PerspectiveCamera();
+    const scratchCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    const hardToSmoothRatio = (settings: KeyboardCameraSettings) => {
+      scratchCamera.aspect = camera.aspect;
+      scratchCamera.fov = settings.fov;
+      const az = (settings.azimuthDeg * Math.PI) / 180;
+      const opts = {
+        azimuthDeg: settings.azimuthDeg,
+        elevationDeg: settings.elevationDeg,
+        margin: 1,
+        up: new THREE.Vector3(-Math.sin(az), 0, -Math.cos(az)),
+      };
+      frameKeyboardCamera(scratchCamera, model, opts);
+      const hard = scratchCamera.position.distanceTo(scratchCenter);
+      frameKeyboardCamera(scratchCamera, model, { ...opts, smoothFit: CAMERA_FIT_SMOOTHING });
+      return hard / scratchCamera.position.distanceTo(scratchCenter);
+    };
+    let fitCorrectionFrom = 1;
+    let fitCorrectionTo = 1;
+
+    // Measured once, before any key press animation can nudge it, so the framing target
+    // doesn't wobble from frame to frame during the camera move.
+    const modelCenter = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    let framedSettings: KeyboardCameraSettings = currentCameraSettings(performance.now());
+    // Camera-only; runs every frame during the entrance move. Canvas resizing lives in
+    // resize() below, since setSize() every frame reallocates the drawing buffer.
+    const frameCamera = () => {
+      const settings = framedSettings;
+      camera.fov = settings.fov;
+
+      // "Horizontally away from the camera" is a valid up reference at every elevation below
+      // 90deg and varies smoothly with azimuth, so both the fit distance and the roll stay
+      // continuous through the move (frameKeyboardCamera's own up swaps near straight-down).
+      const az = (settings.azimuthDeg * Math.PI) / 180;
+      frameKeyboardCamera(camera, model, {
+        azimuthDeg: settings.azimuthDeg,
+        elevationDeg: settings.elevationDeg,
+        margin: settings.margin * (fitCorrectionFrom + (fitCorrectionTo - fitCorrectionFrom) * introEase),
+        up: new THREE.Vector3(-Math.sin(az), 0, -Math.cos(az)),
+        smoothFit: CAMERA_FIT_SMOOTHING,
+      });
+
+      // Parallel pan: translate the camera and its lookAt target together by the same
+      // vector, so the viewing angle is untouched -- only the framed window slides.
+      const panOffset = new THREE.Vector3(settings.panX, 0, settings.panZ);
+      camera.position.add(panOffset);
+      camera.lookAt(modelCenter.clone().add(panOffset));
+      camera.updateProjectionMatrix();
+    };
     const resize = () => {
       const { clientWidth, clientHeight } = container;
       if (clientWidth === 0 || clientHeight === 0) return;
       renderer.setSize(clientWidth, clientHeight);
       camera.aspect = clientWidth / clientHeight;
-
-      frameKeyboardCamera(camera, model, {
-        azimuthDeg: AZIMUTH_DEG,
-        elevationDeg: ELEVATION_DEG,
-        margin: CAMERA_MARGIN,
-      });
-
-      // Parallel pan: translate the camera and its lookAt target together by the same
-      // vector, so the viewing angle (top-down) is untouched -- only the framed window
-      // slides sideways, exactly like panning the container itself.
-      const panOffset = new THREE.Vector3(PAN_X, 0, 0);
-      camera.position.add(panOffset);
-      const center = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-      camera.lookAt(center.add(panOffset));
+      fitCorrectionFrom = hardToSmoothRatio(KEYBOARD_CAMERA_INTRO_FROM);
+      fitCorrectionTo = hardToSmoothRatio(KEYBOARD_CAMERA_DEFAULTS);
+      frameCamera();
     };
 
     resize();
@@ -86,6 +213,11 @@ export function KeyboardInteractiveScene({ className, onReady, onKeyPress, onBac
     let frameId = 0;
     let readyNotified = false;
     const render = (now: number) => {
+      const nextSettings = currentCameraSettings(now);
+      if (nextSettings !== framedSettings) {
+        framedSettings = nextSettings;
+        frameCamera();
+      }
       interactions(now);
       renderer.render(scene, camera);
       if (!readyNotified) {
@@ -96,8 +228,13 @@ export function KeyboardInteractiveScene({ className, onReady, onKeyPress, onBac
     };
     frameId = requestAnimationFrame(render);
 
+    const autoPressTimer = reduceMotion
+      ? 0
+      : window.setInterval(() => interactions.pressRandomKey(), AUTO_PRESS_INTERVAL_MS);
+
     return () => {
       cancelAnimationFrame(frameId);
+      window.clearInterval(autoPressTimer);
       resizeObserver.disconnect();
       interactions.dispose();
       environment.dispose();

@@ -116,7 +116,7 @@ export function ProjectSlidesWindow({ project, revealToken }: { project: Project
     <section
       ref={windowRef}
       className={`project-slides-window${dragging ? ' is-dragging' : ''}`}
-      aria-label={`${project.displayName} 슬라이드 창`}
+      aria-label={`${project.displayName} 기획서 창`}
       style={{
         left: position.x,
         top: position.y,
@@ -132,11 +132,12 @@ export function ProjectSlidesWindow({ project, revealToken }: { project: Project
       <div
         className="project-slides-window__bar"
         tabIndex={0}
-        aria-label="슬라이드 창 이동: 마우스로 끌거나 방향키로 이동"
+        aria-label="기획서 창 이동: 마우스로 끌거나 방향키로 이동"
         onKeyDown={handleKeyDown}
       >
-        <span className="project-slides-window__title" style={{ fontFamily: project.titleFont }}>슬라이드 보러가기</span>
-        <span className="project-slides-window__arrow" aria-hidden="true">↗</span>
+        <span className="project-slides-window__title" style={{ fontFamily: project.titleFont }}>기획서 보러가기</span>
+        {/* Not linked yet -- no planning document URL to point at. */}
+        <img className="project-slides-window__arrow" src="/assets/arrow.svg" alt="" aria-hidden="true" />
       </div>
       <div className="project-slides-window__placeholder" aria-hidden="true" />
     </section>

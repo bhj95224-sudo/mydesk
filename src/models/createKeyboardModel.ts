@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { KEYBOARD_SKILLS, type KeyboardSkillKey } from '../data/keyboardSkills';
 
 export type ProceduralModelOptions = {
   castShadow?: boolean;
@@ -8,7 +9,7 @@ export type ProceduralModelOptions = {
   // blank case area where those keys used to be. Defaults to true so existing callers (the
   // desk-scene's small keyboard) are unaffected.
   includeNavCluster?: boolean;
-  // When true, the PRESSABLE_KEYS (C/V/R/F/G/I/P) get individual accent colors instead of
+  // When true, active skill keys get individual accent colors instead of
   // the normal IVORY -- see PRESSABLE_KEY_COLORS. Defaults to false so existing callers (the
   // desk-scene's small keyboard) are unaffected.
   highlightPressableKeys?: boolean;
@@ -18,23 +19,24 @@ export type ProceduralModelOptions = {
   // see the atlas helpers below. Defaults to false; only the desk-scene's small keyboard
   // opts in, since the interactive /keyboard page's key count is much smaller.
   atlasLabels?: boolean;
+  // Extra height (model units) added to the PRESSABLE_KEYS' keycaps so they stand taller
+  // than the rest -- the cap is stretched from the plate up, not floated. Defaults to 0.
+  pressableKeyRaise?: number;
 };
 
-const PRESSABLE_KEY_COLORS: Record<string, string> = {
-  C: '#FF772E',
-  V: '#47ACFF',
-  R: '#087EA4',
-  F: '#FE4307',
-  G: '#79DF6A',
-  I: '#E05D00',
-  P: '#30A2FF',
-};
+const activeSkillKeys = (Object.keys(KEYBOARD_SKILLS) as KeyboardSkillKey[])
+  .filter((key) => KEYBOARD_SKILLS[key].enabled !== false);
+export const PRESSABLE_KEYS: ReadonlySet<string> = new Set(activeSkillKeys);
+
+const PRESSABLE_KEY_COLORS: Record<string, string> = Object.fromEntries(
+  activeSkillKeys.map((key) => [key, KEYBOARD_SKILLS[key].accent]),
+);
 
 // ---- grid ------------------------------------------------------------
 const PITCH = 5.0;
 const GAP = 0.5;
 const KEY_H = 2.5;
-export const PRESS_DEPTH = KEY_H * 0.22; // 20-25% of keycap height
+export const PRESS_DEPTH = KEY_H * 0.4; // 40% of keycap height
 
 const ROWS = 6; // 0 = back (function row) .. 5 = front (spacebar row)
 const MAIN_START = 0;
@@ -66,8 +68,6 @@ const PLUM = '#5c2f35';
 
 const LIGHT_TEXT = '#5c3a2e';
 const DARK_TEXT = '#e9e4d8';
-
-export const PRESSABLE_KEYS = new Set(['C', 'V', 'R', 'F', 'G', 'I', 'P']);
 
 type KeyDef = { row: number; col: number; w: number; d: number; color: string; label: string; textColor?: string };
 
@@ -230,33 +230,74 @@ function drawLabelCell(
   text: string,
   bgColor: string,
   textColor: string,
+  // 'uniform': one size for every word label and one (bigger) for single characters,
+  // regardless of key width -- used by the true-aspect per-key textures. 'legacy': the
+  // width/length-based sizes the desk page's atlas cells were tuned with.
+  sizing: 'legacy' | 'uniform' = 'legacy',
 ): void {
   ctx.fillStyle = bgColor;
   ctx.fillRect(x, y, w, h);
+  if (text === 'Menu') {
+    // Hamburger icon instead of the word: three rounded bars, centered.
+    const barW = h * 0.34;
+    const barH = h * 0.05;
+    const gap = h * 0.1;
+    ctx.strokeStyle = textColor;
+    ctx.lineWidth = barH;
+    ctx.lineCap = 'round';
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    for (const dy of [-gap, 0, gap]) {
+      ctx.beginPath();
+      ctx.moveTo(cx - barW / 2, cy + dy);
+      ctx.lineTo(cx + barW / 2, cy + dy);
+      ctx.stroke();
+    }
+    return;
+  }
   if (text) {
     ctx.fillStyle = textColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const wide = w > h * 1.5;
-    // Ratios of the original 128px-tall cell (40/128, 52/128, 34/128, 30/128, 26/128) so
-    // this scales correctly for the smaller atlas cells used on the desk page -- see
-    // buildLabelAtlas's CELL_W/CELL_H.
-    let fontSize = h * (wide ? 0.3125 : 0.40625);
-    if (text.length > 5) fontSize = h * (wide ? 0.265625 : 0.234375);
-    if (text.length > 8) fontSize = h * 0.203125;
-    ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+    let fontSize: number;
+    if (sizing === 'uniform') {
+      fontSize = h * (text.length === 1 ? 0.42 : 0.3);
+    } else {
+      const wide = w > h * 1.5;
+      // Ratios of the original 128px-tall cell (40/128, 52/128, 34/128, 30/128, 26/128) so
+      // this scales correctly for the smaller atlas cells used on the desk page -- see
+      // buildLabelAtlas's CELL_W/CELL_H.
+      fontSize = h * (wide ? 0.3125 : 0.40625);
+      if (text.length > 5) fontSize = h * (wide ? 0.265625 : 0.234375);
+      if (text.length > 8) fontSize = h * 0.203125;
+    }
+    // Light text on the dark keycaps reads much heavier than the brown text on ivory ones
+    // (which the lighting also lightens), so it uses the regular weight to look the same.
+    // (DARK_TEXT is the cream text *for* dark keys -- see isLightColor's callers.)
+    const fontWeight = sizing === 'uniform' && textColor === DARK_TEXT ? 400 : 600;
+    ctx.font = `${fontWeight} ${fontSize}px Arial, sans-serif`;
+    // Shrink (never stretch) words that would otherwise run past the keycap edge.
+    const maxTextWidth = w * 0.84;
+    const measured = ctx.measureText(text).width;
+    if (measured > maxTextWidth) {
+      fontSize *= maxTextWidth / measured;
+      ctx.font = `${fontWeight} ${fontSize}px Arial, sans-serif`;
+    }
     ctx.fillText(text, x + w / 2, y + h / 2 + h * 0.015625);
   }
 }
 
-function makeLabelTexture(text: string, bgColor: string, textColor: string, wide: boolean): THREE.CanvasTexture {
-  const w = wide ? 256 : 128;
-  const h = 128;
+// `aspect` is the keycap top face's width/depth. The canvas matches it exactly so the label
+// maps onto the face 1:1 -- a fixed square/2:1 canvas got stretched sideways on 1.25u-2.75u
+// keys (Ctrl/Alt/Tab/Caps/Enter/Shift...), making their text look wide and squashed.
+function makeLabelTexture(text: string, bgColor: string, textColor: string, aspect: number): THREE.CanvasTexture {
+  const h = 192;
+  const w = Math.round(h * aspect);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  drawLabelCell(ctx, 0, 0, w, h, text, bgColor, textColor);
+  drawLabelCell(ctx, 0, 0, w, h, text, bgColor, textColor, 'uniform');
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
@@ -352,7 +393,7 @@ function buildKeycapMesh(
     }
     geo = cached;
     const textColor = key.textColor ?? (isLightColor(key.color) ? LIGHT_TEXT : DARK_TEXT);
-    const labelTex = makeLabelTexture(key.label, key.color, textColor, key.w >= 2);
+    const labelTex = makeLabelTexture(key.label, key.color, textColor, w / d);
     topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.5, metalness: 0.05 });
   }
 
@@ -375,6 +416,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
   const includeNavCluster = options.includeNavCluster ?? true;
   const highlightPressableKeys = options.highlightPressableKeys ?? false;
   const useLabelAtlas = options.atlasLabels ?? false;
+  const pressableKeyRaise = options.pressableKeyRaise ?? 0;
   const caseW = getCaseW(includeNavCluster);
 
   const setShadow = (mesh: THREE.Mesh) => {
@@ -430,7 +472,10 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
       const group = new THREE.Group() as PressableKey;
       group.name = `pressable-${key.label}`;
       group.position.set(x, y, z);
-      mesh.position.set(0, 0, 0);
+      // Geometry is shared through geometryCache, so stretch the mesh instead: bottom stays
+      // on the plate, top rises by pressableKeyRaise.
+      mesh.scale.y = (KEY_H + pressableKeyRaise) / KEY_H;
+      mesh.position.set(0, pressableKeyRaise / 2, 0);
       group.add(mesh);
       group.userData = { key: key.label, pressable: true, restY: y };
       pressableGroup.add(group);
@@ -486,7 +531,11 @@ export function createKeyboardEnvironment(renderer: THREE.WebGLRenderer): THREE.
 export function frameKeyboardCamera(
   camera: THREE.PerspectiveCamera,
   model: THREE.Object3D,
-  opts: { azimuthDeg: number; elevationDeg: number; margin?: number },
+  // `up`: optional fixed up reference. Without it the up vector is swapped near straight-
+  // down (see below), which changes the fit distance abruptly at that elevation -- an
+  // animated camera passing through it visibly jolts, so animated callers pass one that is
+  // continuous across elevations.
+  opts: { azimuthDeg: number; elevationDeg: number; margin?: number; up?: THREE.Vector3; smoothFit?: number },
 ): void {
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
@@ -502,7 +551,8 @@ export function frameKeyboardCamera(
   // which degenerates the camera's right-vector cross product (a near-top-down shot
   // stretches/skews instead of framing cleanly). Swap to a horizontal up reference
   // whenever dir is close to straight up/down.
-  camera.up.set(0, Math.abs(dir.y) > 0.999 ? 0 : 1, Math.abs(dir.y) > 0.999 ? -1 : 0);
+  if (opts.up) camera.up.copy(opts.up);
+  else camera.up.set(0, Math.abs(dir.y) > 0.999 ? 0 : 1, Math.abs(dir.y) > 0.999 ? -1 : 0);
 
   const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize();
   const screenUp = new THREE.Vector3().crossVectors(right, dir).normalize();
@@ -519,10 +569,16 @@ export function frameKeyboardCamera(
     Math.abs(dir.x) * halfSize.x +
     Math.abs(dir.y) * halfSize.y +
     Math.abs(dir.z) * halfSize.z;
-  const distance = Math.max(
-    halfWidth / Math.tan(hFov / 2),
-    halfHeight / Math.tan(vFov / 2),
-  ) * margin;
+  const widthFit = halfWidth / Math.tan(hFov / 2);
+  const heightFit = halfHeight / Math.tan(vFov / 2);
+  // A hard max has a corner where the binding side switches from width to height, so a
+  // camera animated through that point suddenly changes its dolly speed. smoothFit rounds
+  // the corner (a fraction of the fit distance); far from the crossover it equals the max.
+  const smoothK = (opts.smoothFit ?? 0) * Math.max(widthFit, heightFit);
+  const fit = smoothK > 0
+    ? (widthFit + heightFit + Math.sqrt((widthFit - heightFit) ** 2 + smoothK ** 2)) / 2
+    : Math.max(widthFit, heightFit);
+  const distance = fit * margin;
 
   camera.position.copy(center).addScaledVector(dir, distance);
   camera.near = Math.max(0.01, distance - halfDepth * 2);
