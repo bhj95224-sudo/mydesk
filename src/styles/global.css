@@ -469,63 +469,81 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(38, 31, 44, .62);
-  backdrop-filter: blur(8px);
+  background: rgba(39, 37, 28, .3);
+  backdrop-filter: blur(3px);
   animation: tabletPreviewFadeIn .22s ease both;
 }
+.tablet-preview-backdrop--hover { pointer-events: none; }
 .tablet-preview-window {
   display: flex;
   flex-direction: column;
-  width: min(1500px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
+  width: min(960px, calc(100vw - 48px));
+  max-height: min(640px, calc(100dvh - 64px));
   overflow: hidden;
-  border: 1px solid rgba(56, 42, 131, .25);
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 30px 90px rgba(31, 22, 48, .35);
+  border: 1px solid #34332c;
+  border-radius: 18px;
+  background: #fbeee6;
+  box-shadow: 0 24px 70px rgba(38, 36, 27, .2);
   animation: tabletPreviewOpen .32s cubic-bezier(.22, 1, .36, 1) both;
 }
 .tablet-preview-window__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  min-height: 54px;
-  padding: 0 12px 0 22px;
-  border-bottom: 1px solid rgba(56, 42, 131, .12);
-  background: linear-gradient(90deg, #fff, #fbeee6 58%, #ede4e7);
+  min-height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid #34332c;
+  background: #fbeee6;
+}
+.tablet-preview-window__eyebrow,
+.tablet-preview-window__actions {
+  font-family: "SUIT", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
 }
 .tablet-preview-window__header h2 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: .16em;
+  font-family: Georgia, serif;
+  font-size: 29px;
+  font-weight: 400;
+  letter-spacing: -.04em;
+}
+.tablet-preview-window__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
 }
 .tablet-preview-window__close {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  margin-left: auto;
-  padding: 0 0 3px;
+  width: 32px;
+  height: 32px;
+  padding: 0 0 2px;
   border: 0;
-  border-radius: 50%;
-  color: #fff;
-  background: #df2684;
-  font-size: 25px;
+  color: #34332c;
+  background: transparent;
+  font-size: 29px;
   line-height: 1;
   cursor: pointer;
 }
+.tablet-preview-window__close:focus-visible { outline: 2px solid #34332c; outline-offset: 2px; }
 .tablet-preview-window__body {
   min-height: 0;
-  padding: 16px;
+  padding: 20px;
   overflow: auto;
-  background: #f8f6f3;
+  background: #fbeee6;
 }
 .tablet-preview-window__body img {
   display: block;
   width: 100%;
   height: auto;
-  max-height: calc(100vh - 136px);
+  max-height: min(460px, calc(100dvh - 210px));
   margin: auto;
+  border: 1px solid #34332c;
+  border-radius: 10px;
+  background: #fff;
   object-fit: contain;
 }
 @keyframes tabletPreviewFadeIn {
@@ -767,6 +785,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .desk-scene { inset: 18px; }
   .tablet-page { height: 100svh; min-height: 100svh; overflow: hidden; }
   .tablet-physics-stage { bottom: 18px; width: calc(100% - 36px); }
+  .tablet-preview-window__header { grid-template-columns: 1fr auto; min-height: 54px; padding: 0 14px; }
+  .tablet-preview-window__header h2 { font-size: 24px; }
+  .tablet-preview-window__eyebrow, .tablet-preview-window__actions > span { display: none; }
+  .tablet-preview-window__body { padding: 12px; }
   .tablet-physics-stage:not(.is-physics-ready) {
     display: flex;
     flex-direction: column;

@@ -6,6 +6,8 @@ interface TabletPlaceholderProps {
   item: TabletPlaceholderItem;
   children?: ReactNode;
   onActivate?: () => void;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
 }
 
 type TabletPlaceholderStyle = CSSProperties & {
@@ -19,7 +21,7 @@ type TabletPlaceholderStyle = CSSProperties & {
 
 const CLICK_MOVE_THRESHOLD = 8;
 
-export function TabletPlaceholder({ item, children, onActivate }: TabletPlaceholderProps) {
+export function TabletPlaceholder({ item, children, onActivate, onHoverStart, onHoverEnd }: TabletPlaceholderProps) {
   const pointerStartRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const style: TabletPlaceholderStyle = {
     '--placeholder-width': `${item.width}px`,
@@ -31,7 +33,7 @@ export function TabletPlaceholder({ item, children, onActivate }: TabletPlacehol
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (!onActivate || event.button !== 0) return;
+    if (!onActivate || event.pointerType === 'mouse' || event.button !== 0) return;
     pointerStartRef.current = {
       id: event.pointerId,
       x: event.clientX,
@@ -53,7 +55,7 @@ export function TabletPlaceholder({ item, children, onActivate }: TabletPlacehol
   const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
     const pointerStart = pointerStartRef.current;
     pointerStartRef.current = null;
-    if (!pointerStart || pointerStart.id !== event.pointerId || pointerStart.moved) return;
+    if (event.pointerType === 'mouse' || !pointerStart || pointerStart.id !== event.pointerId || pointerStart.moved) return;
     onActivate?.();
   };
 
@@ -75,6 +77,12 @@ export function TabletPlaceholder({ item, children, onActivate }: TabletPlacehol
       role={onActivate ? 'button' : undefined}
       tabIndex={onActivate ? 0 : undefined}
       aria-haspopup={onActivate ? 'dialog' : undefined}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') onHoverStart?.();
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') onHoverEnd?.();
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

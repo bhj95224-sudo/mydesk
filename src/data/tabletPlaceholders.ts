@@ -129,8 +129,8 @@ export const tabletImageItems: TabletImageItem[] = [
     top: 560,
     rotation: 6,
     spawnX: 0.88,
-    spawnOffsetY: 460,
-    spawnDelay: 330,
+    spawnOffsetY: 220,
+    spawnDelay: 150,
   },
 ];
 
