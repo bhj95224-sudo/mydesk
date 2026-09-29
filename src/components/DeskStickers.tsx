@@ -36,7 +36,7 @@ function StickerContent({ id }: { id: StickerId }) {
   return (
     <div className={`desk-sticker__tape desk-sticker__tape--${isWork ? 'work' : 'spin'}`}>
       <span className="desk-sticker__tape-block" />
-      <span className="desk-sticker__tape-text">{isWork ? '작업하자' : '돌려봐!'}</span>
+      <span className="desk-sticker__tape-text">{isWork ? '눌러봐!' : '돌려봐!'}</span>
     </div>
   );
 }

@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   DeskSetupScene,
   type DeskObjectDestination,
 } from '../components/DeskSetupScene';
 import { ContactNote } from '../components/ContactNote';
+import { DeskBubbles, type DeskBubbleId } from '../components/DeskBubbles';
 import { DeskStickers } from '../components/DeskStickers';
-import { HobbyNote } from '../components/HobbyNote';import type { Position, StickyNoteHandle } from '../components/StickyNote';
+import { HobbyNote } from '../components/HobbyNote';
+import type { Position, StickyNoteHandle } from '../components/StickyNote';
 
 const NOTE_SCREEN_MARGIN = 24;
 const NOTE_STACK_OFFSET = 100;
@@ -29,6 +31,14 @@ const DESK_DECOR = [
   { name: '피그마 책', src: '/assets/desk-decor/figma-book.png', x: 67.2, y: 33.8, width: 8.0, rotate: 0 },
   { name: '마리모', src: '/assets/desk-decor/marimo.png', x: 82.6, y: 55.5, width: 5.55, rotate: 25.68 },
 ] as const;
+
+// Decor objects that show a speech bubble when clicked (Figma 232:247); the books have none.
+const DECOR_BUBBLES: Partial<Record<(typeof DESK_DECOR)[number]['name'], DeskBubbleId>> = {
+  아이스커피: 'coffee',
+  오팔: 'opal',
+  마리모: 'marimo',
+};
+const BUBBLE_VISIBLE_MS = 2600;
 
 type DeskPageProps = {
   introActive: boolean;
@@ -57,6 +67,21 @@ export function DeskPage({
   const contactNoteRef = useRef<StickyNoteHandle>(null);
   const readyNotifiedRef = useRef(false);
   const playDecorIntroRef = useRef(!introComplete);
+  const [visibleBubbles, setVisibleBubbles] = useState<Partial<Record<DeskBubbleId, boolean>>>({});
+  const bubbleTimersRef = useRef<Partial<Record<DeskBubbleId, number>>>({});
+
+  // Clicking again while a bubble is up restarts its timer instead of stacking another.
+  const showBubble = useCallback((id: DeskBubbleId) => {
+    window.clearTimeout(bubbleTimersRef.current[id]);
+    setVisibleBubbles((current) => ({ ...current, [id]: true }));
+    bubbleTimersRef.current[id] = window.setTimeout(() => {
+      setVisibleBubbles((current) => ({ ...current, [id]: false }));
+    }, BUBBLE_VISIBLE_MS);
+  }, []);
+
+  useEffect(() => () => {
+    Object.values(bubbleTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+  }, []);
 
   const handleSceneReady = useCallback(() => {
     if (readyNotifiedRef.current) return;
@@ -163,7 +188,11 @@ export function DeskPage({
         {DESK_DECOR.map(({ name, src, x, y, width, rotate }, index) => (
           <div
             key={src}
-            className="desk-decor__anchor"
+            className={`desk-decor__anchor${DECOR_BUBBLES[name] ? ' desk-decor__anchor--clickable' : ''}`}
+            onClick={() => {
+              const bubble = DECOR_BUBBLES[name];
+              if (bubble) showBubble(bubble);
+            }}
             style={{
               left: `${x}%`,
               top: `${y}%`,
@@ -185,6 +214,7 @@ export function DeskPage({
           </div>
         ))}
       </div>
+      <DeskBubbles visible={visibleBubbles} />
       <DeskStickers
         entranceClass={playDecorIntroRef.current ? introComplete ? 'is-revealed' : 'is-waiting' : 'is-ready'}
       />
