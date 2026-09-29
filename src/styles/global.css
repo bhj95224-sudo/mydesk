@@ -180,6 +180,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .desk-decor__anchor {
   position: absolute;
 }
+/* Coffee/opal/marimo: click to show their speech bubble (DeskBubbles). */
+.desk-decor__anchor--clickable { pointer-events: auto; cursor: pointer; }
 .desk-decor__entrance { opacity: 1; }
 .desk-decor.is-waiting .desk-decor__entrance { opacity: 0; }
 .desk-decor.is-revealed .desk-decor__entrance {
@@ -210,6 +212,94 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 @media (prefers-reduced-motion: reduce) {
   .desk-decor.is-revealed .desk-decor__entrance { animation: none; opacity: 1; }
   .desk-decor__float { animation: none; }
+}
+
+/* Click-to-show speech bubbles over the decor objects (DeskBubbles, Figma 232:247). Same
+   16:9 frame and --dpx scale as .desk-stickers below. */
+.desk-bubbles {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 177.777vh);
+  aspect-ratio: 16 / 9;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  container-type: inline-size;
+  --dpx: calc(100cqw / 3388.44);
+}
+.desk-bubble { position: absolute; transform: translate(-50%, -50%); }
+/* Hidden = a little above and transparent: showing slides it down into place, hiding fades
+   it back up. */
+.desk-bubble__motion {
+  position: relative;
+  opacity: 0;
+  transform: translateY(calc(-28 * var(--dpx))) scale(.96);
+  filter: blur(3px);
+  /* Hiding: a slow, even fade that drifts back up. */
+  transition:
+    opacity .8s cubic-bezier(.45, 0, .55, 1),
+    transform .9s cubic-bezier(.45, 0, .55, 1),
+    filter .8s cubic-bezier(.45, 0, .55, 1);
+}
+.desk-bubble.is-visible .desk-bubble__motion {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+  /* Showing: eases in and settles softly, no snap at the end. */
+  transition:
+    opacity .7s cubic-bezier(.33, 1, .68, 1),
+    transform 1s cubic-bezier(.16, 1, .3, 1),
+    filter .6s cubic-bezier(.33, 1, .68, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-bubble__motion,
+  .desk-bubble.is-visible .desk-bubble__motion { transform: none; filter: none; transition: opacity .3s linear; }
+}
+.desk-bubble__balloon {
+  position: relative;
+  width: calc(229 * var(--dpx));
+  height: calc(98 * var(--dpx));
+}
+.desk-bubble__balloon img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.desk-bubble__balloon span {
+  position: absolute;
+  top: calc(25 * var(--dpx));
+  color: #fff;
+  font-family: "Cafe24 Ssurround Air", "Pretendard", sans-serif;
+  font-weight: 300;
+  font-size: calc(20 * var(--dpx));
+  line-height: normal;
+  white-space: nowrap;
+}
+.desk-bubble--opal .desk-bubble__balloon span { left: calc(32 * var(--dpx)); }
+.desk-bubble--coffee .desk-bubble__balloon span { left: calc(36 * var(--dpx)); }
+.desk-bubble--marimo .desk-bubble__balloon span { left: calc(47 * var(--dpx)); }
+/* Marimo group is 229x233: photo card on top, balloon starting at y=135. */
+.desk-bubble--marimo .desk-bubble__motion { width: calc(229 * var(--dpx)); height: calc(233 * var(--dpx)); }
+.desk-bubble--marimo .desk-bubble__balloon { position: absolute; left: 0; top: calc(135 * var(--dpx)); }
+.desk-bubble__photo {
+  position: absolute;
+  left: calc(48.05 * var(--dpx));
+  top: calc(21.94 * var(--dpx));
+  width: calc(113.902 * var(--dpx));
+  height: calc(129.252 * var(--dpx));
+  overflow: hidden;
+  background: #d2d2d2;
+  transform: rotate(-14.12deg);
+}
+.desk-bubble__photo p {
+  position: absolute;
+  left: calc(31.69 * var(--dpx));
+  top: calc(44 * var(--dpx));
+  width: calc(60 * var(--dpx));
+  margin: 0;
+  color: #000;
+  font-family: "Cafe24 Ssurround Air", "Pretendard", sans-serif;
+  font-weight: 300;
+  font-size: calc(15 * var(--dpx));
+  line-height: normal;
+  transform: rotate(14.12deg);
 }
 
 /* Draggable paper decorations (DeskStickers, Figma node 229:209). Same 16:9 frame as
@@ -275,7 +365,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   line-height: normal;
   white-space: nowrap;
 }
-.desk-sticker__tape--work .desk-sticker__tape-text { left: calc(197.68 * var(--dpx)); top: calc(22.21 * var(--dpx)); }
+/* "눌러봐!" is the same width as "돌려봐!", so it uses that label's inset (Figma's 197.68
+   was for the longer "작업하자"). */
+.desk-sticker__tape--work .desk-sticker__tape-text { left: calc(214 * var(--dpx)); top: calc(22.21 * var(--dpx)); }
 .desk-sticker__tape--spin .desk-sticker__tape-text { left: calc(214 * var(--dpx)); top: calc(24 * var(--dpx)); }
 
 .desk-sticker__note {
