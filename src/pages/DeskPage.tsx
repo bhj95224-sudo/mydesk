@@ -1,26 +1,33 @@
-import { useCallback, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   DeskSetupScene,
   type DeskObjectDestination,
-  type DeskSetupSceneHandle,
 } from '../components/DeskSetupScene';
 import { ContactNote } from '../components/ContactNote';
-import { HobbyNote } from '../components/HobbyNote';
-import type { Position, StickyNoteHandle } from '../components/StickyNote';
+import { DeskStickers } from '../components/DeskStickers';
+import { HobbyNote } from '../components/HobbyNote';import type { Position, StickyNoteHandle } from '../components/StickyNote';
 
 const NOTE_SCREEN_MARGIN = 24;
 const NOTE_STACK_OFFSET = 100;
 
-const DESK_TILT_DISABLED_QUERY =
-  '(hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)';
+// Picked in #/lab -- see DeskBrightnessLab.tsx.
+const DESK_SHADOW_COLOR = '#746363';
+const DESK_KEY_LIGHT_POSITION: [number, number, number] = [-2.0, 9.2, 1.0];
+const DESK_TINT_COLOR = '#FFFDFA';
+const DESK_BRIGHTNESS = 108;
+const DESK_SATURATE = 200;
+// Picked in #/desk-color -- see DeskColorLab.tsx. Normal-blend paint over the desk plywood.
+const DESK_SOLID_COLOR = '#F5BC7A';
+const DESK_SOLID_AMOUNT = 1;
+const DESK_SOLID_LIGHT_INFLUENCE = 1;
 
 // Positions and sizes follow Figma frame 172:880, normalized from its 3840px-wide canvas.
 const DESK_DECOR = [
-  { name: 'VS Code 책', src: '/assets/desk-decor/vscode-book.png', x: 31.82, y: 31.44, width: 4.17, rotate: 0 },
-  { name: '아이스커피', src: '/assets/desk-decor/iced-coffee.png', x: 37.94, y: 37.21, width: 4.04, rotate: -30.62 },
-  { name: '오팔', src: '/assets/desk-decor/opal.png', x: 43.85, y: 26.81, width: 3.06, rotate: -66.25 },
-  { name: '피그마 책', src: '/assets/desk-decor/figma-book.png', x: 60.55, y: 31.41, width: 4.17, rotate: 0 },
-  { name: '마리모', src: '/assets/desk-decor/marimo.png', x: 63.94, y: 46.69, width: 3.83, rotate: 25.68 },
+  { name: 'VS Code 책', src: '/assets/desk-decor/vscode-book.png', x: 15.04, y: 49.7, width: 7.74, rotate: 0 },
+  { name: '아이스커피', src: '/assets/desk-decor/iced-coffee.png', x: 29.5, y: 34.1, width: 5.37, rotate: -30.62 },
+  { name: '오팔', src: '/assets/desk-decor/opal.png', x: 17.81, y: 23.8, width: 5.42, rotate: -66.25 },
+  { name: '피그마 책', src: '/assets/desk-decor/figma-book.png', x: 67.2, y: 33.8, width: 8.0, rotate: 0 },
+  { name: '마리모', src: '/assets/desk-decor/marimo.png', x: 82.6, y: 55.5, width: 5.55, rotate: 25.68 },
 ] as const;
 
 type DeskPageProps = {
@@ -28,13 +35,25 @@ type DeskPageProps = {
   introComplete: boolean;
   onIntroComplete: () => void;
   onReady?: () => void;
+  // Desk color (normal blend); defaults to the picked DESK_SOLID_* values, overridden by
+  // DeskColorLab.tsx.
+  deskSolidColor?: string;
+  deskSolidAmount?: number;
+  deskSolidLightInfluence?: number;
 };
 
-export function DeskPage({ introActive, introComplete, onIntroComplete, onReady }: DeskPageProps) {
+export function DeskPage({
+  introActive,
+  introComplete,
+  onIntroComplete,
+  onReady,
+  deskSolidColor = DESK_SOLID_COLOR,
+  deskSolidAmount = DESK_SOLID_AMOUNT,
+  deskSolidLightInfluence = DESK_SOLID_LIGHT_INFLUENCE,
+}: DeskPageProps) {
   const [destination, setDestination] = useState<DeskObjectDestination | null>(null);
   const [contactNoteOpen, setContactNoteOpen] = useState(false);
   const [hobbyNoteOpen, setHobbyNoteOpen] = useState(false);
-  const sceneRef = useRef<DeskSetupSceneHandle>(null);
   const contactNoteRef = useRef<StickyNoteHandle>(null);
   const readyNotifiedRef = useRef(false);
   const playDecorIntroRef = useRef(!introComplete);
@@ -45,32 +64,10 @@ export function DeskPage({ introActive, introComplete, onIntroComplete, onReady 
     onReady?.();
   }, [onReady]);
 
-  const resetTilt = useCallback(() => {
-    sceneRef.current?.resetAzimuthPointer();
-  }, []);
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!introComplete) {
-      resetTilt();
-      return;
-    }
-    if (
-      event.pointerType === 'touch' ||
-      window.matchMedia(DESK_TILT_DISABLED_QUERY).matches
-    ) {
-      resetTilt();
-      return;
-    }
-
-    const normalizedX = Math.max(-1, Math.min(1, (event.clientX / window.innerWidth) * 2 - 1));
-    sceneRef.current?.setAzimuthPointer(normalizedX);
-  };
-
   const beginNavigation = useCallback((nextDestination: DeskObjectDestination) => {
     if (!introComplete) return;
-    resetTilt();
     setDestination((currentDestination) => currentDestination ?? nextDestination);
-  }, [introComplete, resetTilt]);
+  }, [introComplete]);
 
   const startNavigation = (event: MouseEvent<HTMLAnchorElement>, nextDestination: DeskObjectDestination) => {
     event.preventDefault();
@@ -106,8 +103,6 @@ export function DeskPage({ introActive, introComplete, onIntroComplete, onReady 
       className={`desk-page page-shell${
         introComplete ? ' is-intro-complete' : introActive ? ' is-intro-entering' : ' is-intro-pending'
       }${destination ? ' is-leaving' : ''}`}
-      onPointerMove={handlePointerMove}
-      onPointerLeave={resetTilt}
       onAnimationEnd={(event) => {
         if (destination && event.target === event.currentTarget) {
           window.location.hash = destination;
@@ -117,7 +112,6 @@ export function DeskPage({ introActive, introComplete, onIntroComplete, onReady 
       <section className="desk-scene" aria-label="책상 화면">
         <div className="desk-image-wrap">
           <DeskSetupScene
-            ref={sceneRef}
             className="desk-image"
             introActive={introActive}
             introComplete={introComplete}
@@ -125,6 +119,19 @@ export function DeskPage({ introActive, introComplete, onIntroComplete, onReady 
             onIntroComplete={onIntroComplete}
             onObjectActivate={beginNavigation}
             onDrawerActivate={handleDrawerActivate}
+            drawerFileOut={contactNoteOpen}
+            enableShadows
+            showShadowFloor
+            hideBakedAO
+            keyLightPosition={DESK_KEY_LIGHT_POSITION}
+            shadowColor={DESK_SHADOW_COLOR}
+            enableOrbitControls
+            deskTintColor={DESK_TINT_COLOR}
+            deskBrightness={DESK_BRIGHTNESS}
+            deskSaturate={DESK_SATURATE}
+            deskSolidColor={deskSolidColor}
+            deskSolidAmount={deskSolidAmount}
+            deskSolidLightInfluence={deskSolidLightInfluence}
           />
           <a
             className="desk-overlay desk-overlay--tablet"
@@ -178,6 +185,9 @@ export function DeskPage({ introActive, introComplete, onIntroComplete, onReady 
           </div>
         ))}
       </div>
+      <DeskStickers
+        entranceClass={playDecorIntroRef.current ? introComplete ? 'is-revealed' : 'is-waiting' : 'is-ready'}
+      />
       {contactNoteOpen && (
         <ContactNote
           ref={contactNoteRef}

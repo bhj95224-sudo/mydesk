@@ -11,6 +11,7 @@ export type DecorItem = {
 
 export type Project = {
   id: string;
+  enabled?: boolean;
   name: string;
   displayName: string;
   category: string;
@@ -36,7 +37,7 @@ export type Project = {
 };
 
 // Copy and links are intentionally centralized here for later replacement with final case-study content.
-export const projects: Project[] = [
+const projectCatalog: Project[] = [
   {
     id: 'sulwhasoo',
     name: 'Sulwhasoo',
@@ -45,7 +46,7 @@ export const projects: Project[] = [
     description: '프로젝트 소개 문구와 담당 범위를 입력할 예정입니다.',
     accent: '#ee7729',
     idleAccent: '#FCD3B7',
-    borderColor: '#713f13',
+    borderColor: '#c6ad96',
     theme: 'sulwhasoo',
     titleFont: '"Cormorant Garamond", Georgia, serif',
     backgroundMid: '#f5e0cc',
@@ -69,7 +70,7 @@ export const projects: Project[] = [
     description: '혼자 사는 사람의 생활 관리를 돕는 모바일 서비스입니다. 포트폴리오에 표시할 개인 기여 범위는 확정 후 추가합니다.',
     accent: '#b43936',
     idleAccent: '#E8C3C2',
-    borderColor: '#7c0e0b',
+    borderColor: '#e4908e',
     theme: 'jaduya',
     titleFont: '"KERIS KEDU", "Pretendard", sans-serif',
     backgroundMid: '#ffefc0',
@@ -88,7 +89,7 @@ export const projects: Project[] = [
     description: '리디자인이 필요한 웹페이지를 작업하였습니다.\n비플레인은 브랜드 소개 페이지가 없었기 때문에 저만의 방식으로\n디자인을 변경하였습니다.',
     accent: '#62d91d',
     idleAccent: '#D7F4BC',
-    borderColor: '#137139',
+    borderColor: '#85a793',
     theme: 'beplain',
     titleFont: '"WILDgag", "Pretendard", sans-serif',
     backgroundMid: '#ebfbe6',
@@ -105,6 +106,7 @@ export const projects: Project[] = [
   },
   {
     id: 'hourtention',
+    enabled: false,
     name: 'hourtention',
     displayName: 'hourtention',
     category: 'PROJECT',
@@ -122,4 +124,6 @@ export const projects: Project[] = [
     decor: [],
   },
 ];
+
+export const projects: Project[] = projectCatalog.filter((project) => project.enabled !== false);
 

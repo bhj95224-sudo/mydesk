@@ -2,6 +2,7 @@ import gsap from 'gsap';
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, WheelEvent as ReactWheelEvent } from 'react';
 import { AnimatedContent } from '../components/AnimatedContent';
+import { BackToDeskLink } from '../components/BackToDeskLink';
 import { ProjectArtwork } from '../components/ProjectArtwork';
 import { ProjectDecor } from '../components/ProjectDecor';
 import { ProjectSlidesWindow } from '../components/ProjectSlidesWindow';
@@ -14,6 +15,7 @@ type WindowSlot = {
 };
 
 type EntryTransitionPhase = 'drawing' | 'opening' | 'complete';
+const FRONT_WINDOW_DEPTH = 3;
 
 function MonitorEntryTransition() {
   const [phase, setPhase] = useState<EntryTransitionPhase>('drawing');
@@ -106,7 +108,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
       const element = windowRefs.current[projectId];
       if (!element) return;
 
-      const depth = projects.length - 1 - position;
+      const depth = FRONT_WINDOW_DEPTH - position;
       const styles = getComputedStyle(element);
       const slot = {
         left: Number.parseFloat(styles.left),
@@ -123,7 +125,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
       });
     });
 
-    const backSlot = slots.get(0);
+    const backSlot = slots.get(FRONT_WINDOW_DEPTH - projects.length + 1);
     if (!backSlot) return;
 
     swapInProgress.current = true;
@@ -158,7 +160,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
       .set(
         leavingWindow,
         {
-          zIndex: projects.length + 1,
+          zIndex: FRONT_WINDOW_DEPTH + 2,
           transformOrigin: 'center center',
         },
         0,
@@ -197,7 +199,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
 
     nextOrder.slice(0, -1).forEach((projectId, position) => {
       const element = windowRefs.current[projectId];
-      const depth = projects.length - 1 - position;
+      const depth = FRONT_WINDOW_DEPTH - position;
       const targetSlot = slots.get(depth);
       if (!element || !targetSlot) return;
 
@@ -267,18 +269,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
       </div>
 
       <header className="browser-header">
-        <a
-          className="back-link"
-          href="#/"
-          aria-label="책상 화면으로 돌아가기"
-          onClick={(event) => {
-            event.preventDefault();
-            onBackToDesk();
-          }}
-        >
-          <span className="back-arrow" aria-hidden="true">←</span>
-          BACK TO DESK
-        </a>
+        <BackToDeskLink onBackToDesk={onBackToDesk} />
         <span>SELECTED PROJECTS <b>✳</b> 2026</span>
       </header>
 
@@ -304,7 +295,7 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
         >
           {projects.map((project, projectIndex) => {
             const stackPosition = stackOrder.indexOf(project.id);
-            const depth = projects.length - 1 - stackPosition;
+            const depth = FRONT_WINDOW_DEPTH - stackPosition;
 
             return (
               <ProjectWindow
@@ -354,8 +345,24 @@ function ProjectWindow({
       >
         <span className="project-window__status" aria-hidden="true" />
         <span className="project-window__title" style={{ fontFamily: project.titleFont }}>{project.name}</span>
-        <span className="project-window__action" aria-hidden="true">↗</span>
       </button>
+      {/* A sibling of the bar button (links can't nest inside a button), laid over the right
+          end of the bar. Opens the same site as clicking the artwork. */}
+      {project.externalUrl ? (
+        <a
+          className="project-window__action"
+          href={project.externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${project.displayName} 프로젝트 사이트 새 탭에서 열기`}
+        >
+          <img src="/assets/arrow.svg" alt="" aria-hidden="true" />
+        </a>
+      ) : (
+        <span className="project-window__action" aria-hidden="true">
+          <img src="/assets/arrow.svg" alt="" />
+        </span>
+      )}
       <ProjectArtwork project={project} />
     </article>
   );

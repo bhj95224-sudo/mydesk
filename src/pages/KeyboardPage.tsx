@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { BackToDeskLink } from '../components/BackToDeskLink';
 import { KeyboardInteractiveScene } from '../components/KeyboardInteractiveScene';
 import { KeyboardSkillCard } from '../components/KeyboardSkillCard';
 import { KEYBOARD_SKILLS, type KeyboardSkillKey } from '../data/keyboardSkills';
 import { IntroPage } from './IntroPage';
 
 function isSkillKey(value: string): value is KeyboardSkillKey {
-  return value in KEYBOARD_SKILLS;
+  return Object.prototype.hasOwnProperty.call(KEYBOARD_SKILLS, value)
+    && KEYBOARD_SKILLS[value as KeyboardSkillKey].enabled !== false;
 }
 
 export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
@@ -21,6 +23,7 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   }, [activeSkill]);
 
   const handleSceneReady = useCallback(() => setSceneReady(true), []);
+  const handleCardExited = useCallback(() => setRenderedSkill(null), []);
   const handleKeyPress = useCallback((key: string) => {
     const upper = key.toUpperCase();
     if (!isSkillKey(upper)) return;
@@ -57,18 +60,7 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
     <>
       <main className="keyboard-page page-shell">
         <header className="browser-header keyboard-header">
-          <a
-            className="back-link"
-            href="#/"
-            aria-label="책상 화면으로 돌아가기"
-            onClick={(event) => {
-              event.preventDefault();
-              onBackToDesk();
-            }}
-          >
-            <span className="back-arrow" aria-hidden="true">←</span>
-            BACK TO DESK
-          </a>
+          <BackToDeskLink onBackToDesk={onBackToDesk} />
         </header>
         <section className="keyboard-model-stage" aria-label="3D 키보드 체험">
           <KeyboardInteractiveScene
@@ -76,13 +68,14 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
             onReady={handleSceneReady}
             onKeyPress={handleKeyPress}
             onBackgroundClick={handleBackgroundClick}
+            playCameraIntro={!showLoader}
           />
         </section>
         {renderedSkill && (
           <KeyboardSkillCard
             skillKey={renderedSkill}
             show={activeSkill !== null}
-            onExited={() => setRenderedSkill(null)}
+            onExited={handleCardExited}
           />
         )}
       </main>
