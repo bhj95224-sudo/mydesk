@@ -63,6 +63,9 @@ export function ProjectMonitorScene({ className, backgroundMid, backgroundEnd, o
     model.position.set(0, 0, 0);
     model.rotation.set(0, 0, 0);
     model.scale.setScalar(1);
+    // The desk page's slideshow surface lives on the same cached monitor while that page is
+    // mounted; this page paints its own screen.
+    model.getObjectByName('screenImage')?.removeFromParent();
     model.updateMatrixWorld(true);
     // Reuse the glass riser and its supports from the desk model. Their original
     // positions are converted into the monitor's local scale and position.

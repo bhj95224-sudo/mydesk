@@ -11,24 +11,32 @@ type StickyNoteProps = {
   className?: string;
   getInitialPosition: (element: HTMLElement) => Position;
   onClose: () => void;
-  onPlus?: () => void;
+  // For callers that restore the note later: its folded state on mount, and reports of
+  // every fold toggle / move.
+  initialCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
+  onPositionChange?: (position: Position) => void;
   children: ReactNode;
 };
 
 const SCREEN_MARGIN = 18;
 
 // Direct 1:1 pointer-tracked drag (setPointerCapture + delta from the header's own
-// pointerdown/move) -- no eased/lagged follow, matching ProjectSlidesWindow's drag.
+// pointerdown/move) -- no eased/lagged follow.
 export const StickyNote = forwardRef<StickyNoteHandle, StickyNoteProps>(function StickyNote({
   accent,
   ariaLabel,
   className = '',
   getInitialPosition,
   onClose,
-  onPlus,
+  initialCollapsed = false,
+  onCollapsedChange,
+  onPositionChange,
   children,
 }, ref) {
   const noteRef = useRef<HTMLElement>(null);
+  // Folded = header only; the arrow button in the header toggles it.
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   const positionRef = useRef<Position>({ x: 0, y: 0 });
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; x: number; y: number } | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
@@ -51,6 +59,7 @@ export const StickyNote = forwardRef<StickyNoteHandle, StickyNoteProps>(function
     const clamped = clampPosition(next);
     positionRef.current = clamped;
     setPosition(clamped);
+    onPositionChange?.(clamped);
   };
 
   useLayoutEffect(() => {
@@ -115,7 +124,7 @@ export const StickyNote = forwardRef<StickyNoteHandle, StickyNoteProps>(function
   return (
     <section
       ref={noteRef}
-      className={`sticky-note ${className}${dragging ? ' is-dragging' : ''}`}
+      className={`sticky-note ${className}${dragging ? ' is-dragging' : ''}${collapsed ? ' is-collapsed' : ''}`}
       role="dialog"
       aria-label={ariaLabel}
       style={{
@@ -138,13 +147,19 @@ export const StickyNote = forwardRef<StickyNoteHandle, StickyNoteProps>(function
       >
         <button
           type="button"
-          className="sticky-note__icon-btn sticky-note__plus"
-          disabled={!onPlus}
-          onClick={onPlus}
+          className="sticky-note__icon-btn sticky-note__fold"
+          onClick={() => {
+            const next = !collapsed;
+            setCollapsed(next);
+            onCollapsedChange?.(next);
+          }}
           onPointerDown={(event) => event.stopPropagation()}
-          aria-label="새 메모"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? '펼치기' : '접기'}
         >
-          +
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M3 5.25L7 9.25L11 5.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
         <div className="sticky-note__header-spacer" />
         <button
@@ -167,27 +182,32 @@ export const StickyNote = forwardRef<StickyNoteHandle, StickyNoteProps>(function
         </button>
       </div>
 
-      <div className="sticky-note__body">{children}</div>
+      {/* Folds by animating its grid row between 1fr and 0fr (see .sticky-note__fold-area). */}
+      <div className="sticky-note__fold-area" inert={collapsed} aria-hidden={collapsed}>
+        <div className="sticky-note__fold-inner">
+          <div className="sticky-note__body">{children}</div>
 
-      <footer className="sticky-note__toolbar" aria-hidden="true">
-        <span className="sticky-note__tool sticky-note__tool--bold">B</span>
-        <span className="sticky-note__tool sticky-note__tool--italic">I</span>
-        <span className="sticky-note__tool sticky-note__tool--underline">U</span>
-        <span className="sticky-note__tool sticky-note__tool--strike">ab</span>
-        <svg className="sticky-note__tool" width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="2.5" cy="4" r="1.4" fill="currentColor" />
-          <circle cx="2.5" cy="9" r="1.4" fill="currentColor" />
-          <circle cx="2.5" cy="14" r="1.4" fill="currentColor" />
-          <path d="M6.5 4H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          <path d="M6.5 9H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          <path d="M6.5 14H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
-        <svg className="sticky-note__tool" width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="1.5" y="2.5" width="15" height="13" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
-          <circle cx="6" cy="7" r="1.3" fill="currentColor" />
-          <path d="M2.5 13.5L6.5 9.5L9.5 12L12.5 8.5L15.5 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </footer>
+          <footer className="sticky-note__toolbar" aria-hidden="true">
+            <span className="sticky-note__tool sticky-note__tool--bold">B</span>
+            <span className="sticky-note__tool sticky-note__tool--italic">I</span>
+            <span className="sticky-note__tool sticky-note__tool--underline">U</span>
+            <span className="sticky-note__tool sticky-note__tool--strike">ab</span>
+            <svg className="sticky-note__tool" width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="2.5" cy="4" r="1.4" fill="currentColor" />
+              <circle cx="2.5" cy="9" r="1.4" fill="currentColor" />
+              <circle cx="2.5" cy="14" r="1.4" fill="currentColor" />
+              <path d="M6.5 4H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              <path d="M6.5 9H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              <path d="M6.5 14H15.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            <svg className="sticky-note__tool" width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="1.5" y="2.5" width="15" height="13" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
+              <circle cx="6" cy="7" r="1.3" fill="currentColor" />
+              <path d="M2.5 13.5L6.5 9.5L9.5 12L12.5 8.5L15.5 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </footer>
+        </div>
+      </div>
     </section>
   );
 });

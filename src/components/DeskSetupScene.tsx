@@ -7,7 +7,11 @@ import {
   createCurvedBirchPlyDeskSetupEnvironment,
   type ProceduralModelRuntime,
 } from '../models/createDeskSetupModel';
-import { createCurvedAllInOneMonitorModel } from '../models/createCurvedMonitorModel';
+import {
+  CURVED_MONITOR_SCREEN_ASPECT,
+  createCurvedAllInOneMonitorModel,
+  createCurvedMonitorScreenSurface,
+} from '../models/createCurvedMonitorModel';
 import { createKeyboardModel } from '../models/createKeyboardModel';
 import { createTabletModel } from '../models/createTabletModel';
 
@@ -21,6 +25,8 @@ type DeskSetupSceneProps = {
   onIntroComplete?: () => void;
   onObjectActivate?: (destination: DeskObjectDestination) => void;
   onDrawerActivate?: () => void;
+  // Drawer clicked while its note is open -- the page should close the note.
+  onDrawerClose?: () => void;
   // Whether the note the drawer file opened is currently showing; when it goes back to
   // false the file slides back into the drawer.
   drawerFileOut?: boolean;
@@ -166,6 +172,39 @@ function createDrawerFile(): THREE.Group {
   file.position.copy(DRAWER_FILE_REST);
   return file;
 }
+// Project screens cycled on the desk monitor (Figma 275:472, 275:474, 275:473), each cropped
+// to its 1034x576 Figma frame. Held, then cross-faded into the next.
+const MONITOR_SLIDES = [
+  '/assets/desk-monitor/sulwhasoo.jpg',
+  '/assets/desk-monitor/jaduya.jpg',
+  '/assets/desk-monitor/beplain.jpg',
+];
+const MONITOR_SLIDE_HOLD_MS = 3000;
+const MONITOR_SLIDE_FADE_MS = 800;
+const MONITOR_SCREEN_CANVAS_HEIGHT = 720;
+let monitorSlideImages: HTMLImageElement[] | null = null;
+// Loaded once per page load and kept, so returning to the desk doesn't refetch them.
+function getMonitorSlideImages(): HTMLImageElement[] {
+  monitorSlideImages ??= MONITOR_SLIDES.map((src) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = src;
+    return image;
+  });
+  return monitorSlideImages;
+}
+
+// Cover-fits `image` into the canvas (the frames are 1034:576, the screen a bit wider).
+function drawMonitorSlide(context: CanvasRenderingContext2D, image: HTMLImageElement, alpha: number) {
+  const { width, height } = context.canvas;
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const drawWidth = image.naturalWidth * scale;
+  const drawHeight = image.naturalHeight * scale;
+  context.globalAlpha = alpha;
+  context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+  context.globalAlpha = 1;
+}
+
 const INTRO_OBJECT_DURATION_MS = 600;
 const INTRO_TOTAL_DURATION_MS = 860;
 
@@ -258,6 +297,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
     onIntroComplete,
     onObjectActivate,
     onDrawerActivate,
+    onDrawerClose,
     drawerFileOut,
     enableShadows,
     showShadowFloor,
@@ -281,6 +321,8 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
     const onIntroCompleteRef = useRef(onIntroComplete);
     const onObjectActivateRef = useRef(onObjectActivate);
     const onDrawerActivateRef = useRef(onDrawerActivate);
+    const onDrawerCloseRef = useRef(onDrawerClose);
+    onDrawerCloseRef.current = onDrawerClose;
     const enableShadowsRef = useRef(enableShadows ?? false);
     const keyLightPositionRef = useRef(keyLightPosition);
     const shadowColorRef = useRef(shadowColor);
@@ -445,9 +487,35 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       );
       scene.add(monitor, keyboard, tablet);
 
+      // Slideshow on the monitor screen. Added before the intro materials are collected so
+      // it fades in with the monitor; removed again in cleanup since the monitor is cached.
+      const slideCanvas = document.createElement('canvas');
+      slideCanvas.height = MONITOR_SCREEN_CANVAS_HEIGHT;
+      slideCanvas.width = Math.round(MONITOR_SCREEN_CANVAS_HEIGHT * CURVED_MONITOR_SCREEN_ASPECT);
+      const slideContext = slideCanvas.getContext('2d');
+      if (slideContext) {
+        slideContext.fillStyle = '#05050a';
+        slideContext.fillRect(0, 0, slideCanvas.width, slideCanvas.height);
+      }
+      const slideTexture = new THREE.CanvasTexture(slideCanvas);
+      slideTexture.colorSpace = THREE.SRGBColorSpace;
+      slideTexture.anisotropy = 4;
+      const slideMaterial = new THREE.MeshBasicMaterial({ map: slideTexture, toneMapped: false });
+      const slideSurface = createCurvedMonitorScreenSurface(slideMaterial);
+      monitor.add(slideSurface);
+      const slideImages = getMonitorSlideImages();
+      let slideStartTime: number | null = null;
+      let slideDrawnKey = '';
+
       const deskRuntime = model.userData.sculptRuntime as ProceduralModelRuntime | undefined;
       const drawerPivot = deskRuntime?.nodes['drawerFront2'];
-      const drawerClosedZ = drawerPivot?.position.z ?? 0;
+      // The model is cached, so the pivot keeps whatever z the last mount left it at (e.g.
+      // open, if the page was left with the file out). Record the real closed z once, on the
+      // pivot itself, instead of trusting its current position.
+      if (drawerPivot && drawerPivot.userData.drawerClosedZ === undefined) {
+        drawerPivot.userData.drawerClosedZ = drawerPivot.position.z;
+      }
+      const drawerClosedZ: number = drawerPivot?.userData.drawerClosedZ ?? 0;
       let drawerHovered = false;
       // Starts open and eases closed on load (see the tick loop below) as a one-time reveal.
       let drawerOpenCurrent = 1;
@@ -633,6 +701,21 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
         if (!introFinished && !reduceMotion) setIntroOpacity(object.introMaterials, 0);
       }
       if (introFinished || reduceMotion) drawerOpenCurrent = 0;
+      // The page was left with the file out: keep the drawer open and the file on the desk
+      // (without reopening the note) until the drawer is clicked again, which puts it away.
+      let fileParked = false;
+      // Right after that click the pointer is still on the drawer; ignore the hover-open
+      // until it leaves, or the drawer would stay open under the cursor.
+      let drawerHoverSuppressed = false;
+      if (drawerPivot?.userData.drawerFileParked && drawerFile && introFinished && !reduceMotion) {
+        fileParked = true;
+        fileTarget = 1;
+        fileProgress = 1;
+        filePeek = 1;
+        fileNoteRequested = true;
+        drawerOpenCurrent = 1;
+      }
+      if (drawerPivot) drawerPivot.userData.drawerFileParked = false;
 
       const lights = createCurvedBirchPlyDeskSetupLookDevLights();
       scene.add(lights);
@@ -747,9 +830,11 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
         const pointed = getPointedObject(event);
         // getPointedObject sets up `raycaster` for this event's screen position as a side
         // effect, so it can be reused here without recomputing the pointer.
-        drawerHovered = drawerHoverTargets.length > 0
+        const overDrawer = drawerHoverTargets.length > 0
           && raycaster.intersectObjects(drawerHoverTargets, true).length > 0;
-        renderer.domElement.style.cursor = pointed || drawerHovered ? 'pointer' : 'default';
+        if (!overDrawer) drawerHoverSuppressed = false;
+        drawerHovered = overDrawer && !drawerHoverSuppressed;
+        renderer.domElement.style.cursor = pointed || overDrawer ? 'pointer' : 'default';
         for (const object of clickableObjects) {
           object.liftTarget = object === pointed ? HOVER_LIFT : 0;
         }
@@ -758,6 +843,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       const handleObjectPointerLeave = () => {
         renderer.domElement.style.cursor = 'default';
         drawerHovered = false;
+        drawerHoverSuppressed = false;
         for (const object of clickableObjects) {
           object.liftTarget = 0;
         }
@@ -774,12 +860,29 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
         // getPointedObject sets up `raycaster` for this event's screen position as a side
         // effect, so it can be reused here without recomputing the pointer.
         if (drawerHoverTargets.length > 0 && raycaster.intersectObjects(drawerHoverTargets, true).length > 0) {
+          if (drawerFileOutRef.current) {
+            // Note is open: clicking the drawer again closes it. tick() then sees the note
+            // gone and tucks the file back in, and the drawer shuts behind it.
+            onDrawerCloseRef.current?.();
+            drawerHovered = false;
+            drawerHoverSuppressed = true;
+            return;
+          }
           if (!drawerFile || reduceMotion) {
             onDrawerActivateRef.current?.();
             return;
           }
-          // The note opens from tick() once the file is mostly out; if the file is already
-          // out (note open), re-clicking does nothing.
+          if (fileParked) {
+            // Put the file back and shut the drawer (it closes once the file is in).
+            fileParked = false;
+            fileTarget = 0;
+            fileNoteRequested = false;
+            fileNoteSeenOpen = false;
+            drawerHovered = false;
+            drawerHoverSuppressed = true;
+            return;
+          }
+          // The note opens from tick() once the file is mostly out.
           fileTarget = 1;
         }
       };
@@ -912,7 +1015,8 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
             fileNoteRequested = true;
           }
           if (fileNoteRequested && fileNoteSeenOpen && !drawerFileOutRef.current) {
-            // Note closed: tuck the file back in.
+            // Note closed: tuck the file back in (also ends a parked file from a return visit).
+            fileParked = false;
             fileTarget = 0;
             fileNoteRequested = false;
             fileNoteSeenOpen = false;
@@ -969,6 +1073,24 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
             : 0;
           object.model.position.y = object.baseY + object.introCurrentOffsetY + object.liftCurrent + floatOffset;
         }
+        if (slideContext) {
+          slideStartTime ??= now;
+          const slidePeriod = MONITOR_SLIDE_HOLD_MS + MONITOR_SLIDE_FADE_MS;
+          const slideElapsed = now - slideStartTime;
+          const slideIndex = Math.floor(slideElapsed / slidePeriod) % slideImages.length;
+          const current = slideImages[slideIndex];
+          const upcoming = slideImages[(slideIndex + 1) % slideImages.length];
+          const fade = Math.max(0, (slideElapsed % slidePeriod) - MONITOR_SLIDE_HOLD_MS) / MONITOR_SLIDE_FADE_MS;
+          // Redraw only when the picture actually changes (30 steps per cross-fade).
+          const fadeStep = upcoming.complete && upcoming.naturalWidth > 0 ? Math.round(smootherStep(fade) * 30) : 0;
+          const slideKey = `${slideIndex}:${fadeStep}`;
+          if (slideKey !== slideDrawnKey && current.complete && current.naturalWidth > 0) {
+            drawMonitorSlide(slideContext, current, 1);
+            if (fadeStep > 0) drawMonitorSlide(slideContext, upcoming, fadeStep / 30);
+            slideTexture.needsUpdate = true;
+            slideDrawnKey = slideKey;
+          }
+        }
         renderer.shadowMap.enabled = enableShadowsRef.current;
         renderer.render(scene, camera);
         if (!readyNotified) {
@@ -983,6 +1105,20 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
         cancelAnimationFrame(frameId);
         resizeObserver.disconnect();
         clickableObjects.forEach((object) => restoreIntroMaterials(object.introMaterials));
+        monitor.remove(slideSurface);
+        slideSurface.geometry.dispose();
+        slideMaterial.dispose();
+        slideTexture.dispose();
+        // Leave the shared model with the drawer shut and the file tucked inside; if the file
+        // was out, flag it so the next mount reopens the drawer with the file on the desk.
+        if (drawerPivot) {
+          drawerPivot.position.z = drawerClosedZ;
+          drawerPivot.userData.drawerFileParked = Boolean(drawerFile) && fileTarget === 1;
+        }
+        if (drawerFile) {
+          drawerFile.position.copy(DRAWER_FILE_REST);
+          drawerFile.rotation.set(0, 0, 0);
+        }
         if (plywoodMaterial && solidHookInstalled && originalOnBeforeCompile && originalCacheKey) {
           plywoodMaterial.onBeforeCompile = originalOnBeforeCompile;
           plywoodMaterial.customProgramCacheKey = originalCacheKey;

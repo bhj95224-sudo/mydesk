@@ -9,9 +9,14 @@ export function ProjectArtwork({ project, isFront }: { project: Project; isFront
     if (!video) return;
 
     if (isFront) {
+      // Every time the project comes to the front, play its video from the start.
+      video.currentTime = 0;
       void video.play().catch(() => {});
-    } else {
+    } else if (!video.paused || video.currentTime > 0) {
+      // Sent to the back: reset to how it looked before playing (the poster), rather than
+      // freezing on whatever frame it had reached. load() rewinds and brings the poster back.
       video.pause();
+      video.load();
     }
   }, [isFront]);
 
@@ -42,20 +47,7 @@ export function ProjectArtwork({ project, isFront }: { project: Project; isFront
     <img src={project.contentImage} alt="" className="project-artwork__image" />
   );
 
-  if (project.externalUrl) {
-    return (
-      <a
-        className={`project-artwork project-artwork--${project.theme} project-artwork--linked`}
-        href={project.externalUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`${project.displayName} 프로젝트 사이트 새 탭에서 열기`}
-      >
-        {preview}
-      </a>
-    );
-  }
-
+  // Not a link: the site opens from the "프로젝트 보러가기" button beside the monitor.
   return (
     <div className={`project-artwork project-artwork--${project.theme}`} aria-label={`${project.displayName} 프로젝트 대표 화면`}>
       {preview}
