@@ -16,7 +16,14 @@ export interface TabletPhysicsItemBase {
 export interface TabletPlaceholderItem extends TabletPhysicsItemBase {
   kind: 'placeholder';
   size: TabletPlaceholderSize;
+  // Card design. Once set, the card becomes clickable (hover grow + opens the preview
+  // window); cards without one stay plain placeholders.
   src?: string;
+  // Preview window copy/image for this card. previewSrc defaults to src.
+  previewEyebrow?: string;
+  previewTitle?: string;
+  previewSrc?: string;
+  previewAlt?: string;
 }
 
 export interface TabletImageItem extends TabletPhysicsItemBase {
@@ -26,8 +33,8 @@ export interface TabletImageItem extends TabletPhysicsItemBase {
 
 export type TabletPhysicsItem = TabletPlaceholderItem | TabletImageItem;
 
-const TABLET_PLACEHOLDER_WIDTH = 420;
-const TABLET_PLACEHOLDER_HEIGHT = 280;
+const TABLET_PLACEHOLDER_WIDTH = 450;
+const TABLET_PLACEHOLDER_HEIGHT = 300;
 
 export const tabletPlaceholders: TabletPlaceholderItem[] = [
   {
@@ -44,6 +51,9 @@ export const tabletPlaceholders: TabletPlaceholderItem[] = [
     spawnOffsetY: 70,
     spawnDelay: 0,
     src: '/assets/tablet/storyboard-preview.png',
+    previewEyebrow: 'STORYBOARD',
+    previewTitle: 'Sulwhasoo',
+    previewAlt: '한국 홍보 영상 스토리보드 전체 이미지',
   },
   {
     id: 'tablet-work-medium',
@@ -131,6 +141,21 @@ export const tabletImageItems: TabletImageItem[] = [
     spawnX: 0.88,
     spawnOffsetY: 220,
     spawnDelay: 150,
+  },
+  {
+    id: 'tablet-object-card-click-bubble',
+    label: '카드 클릭하기 말풍선 오브젝트',
+    kind: 'image',
+    // 1830x794 source, scaled to the other objects' footprint.
+    src: '/assets/tablet/card-click-bubble.webp',
+    width: 300,
+    height: 130,
+    left: 900,
+    top: 380,
+    rotation: -4,
+    spawnX: 0.47,
+    spawnOffsetY: 380,
+    spawnDelay: 200,
   },
 ];
 

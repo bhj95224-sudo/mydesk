@@ -4,7 +4,7 @@ import {
   type DeskObjectDestination,
 } from '../components/DeskSetupScene';
 import { ContactNote } from '../components/ContactNote';
-import { DeskBubbles, type DeskBubbleId } from '../components/DeskBubbles';
+import { BUBBLE_VISIBLE_MS, DeskBubbles, type DeskBubbleId } from '../components/DeskBubbles';
 import { DeskStickers } from '../components/DeskStickers';
 import { HobbyNote } from '../components/HobbyNote';
 import type { Position, StickyNoteHandle } from '../components/StickyNote';
@@ -32,19 +32,21 @@ const DESK_DECOR = [
   { name: '마리모', src: '/assets/desk-decor/marimo.png', x: 82.6, y: 55.5, width: 5.55, rotate: 25.68 },
 ] as const;
 
-// Decor objects that show a speech bubble when clicked (Figma 232:247); the books have none.
+// Decor objects that show a speech bubble when clicked (Figma 232:247, 244:165).
 const DECOR_BUBBLES: Partial<Record<(typeof DESK_DECOR)[number]['name'], DeskBubbleId>> = {
   아이스커피: 'coffee',
   오팔: 'opal',
   마리모: 'marimo',
+  'VS Code 책': 'vscode-book',
+  '피그마 책': 'figma-book',
 };
-const BUBBLE_VISIBLE_MS = 2600;
 
 type DeskPageProps = {
   introActive: boolean;
   introComplete: boolean;
   onIntroComplete: () => void;
   onReady?: () => void;
+  onProjectNavigationStart?: () => void;
   // Desk color (normal blend); defaults to the picked DESK_SOLID_* values, overridden by
   // DeskColorLab.tsx.
   deskSolidColor?: string;
@@ -57,11 +59,13 @@ export function DeskPage({
   introComplete,
   onIntroComplete,
   onReady,
+  onProjectNavigationStart,
   deskSolidColor = DESK_SOLID_COLOR,
   deskSolidAmount = DESK_SOLID_AMOUNT,
   deskSolidLightInfluence = DESK_SOLID_LIGHT_INFLUENCE,
 }: DeskPageProps) {
   const [destination, setDestination] = useState<DeskObjectDestination | null>(null);
+  const destinationRef = useRef<DeskObjectDestination | null>(null);
   const [contactNoteOpen, setContactNoteOpen] = useState(false);
   const [hobbyNoteOpen, setHobbyNoteOpen] = useState(false);
   const contactNoteRef = useRef<StickyNoteHandle>(null);
@@ -90,9 +94,11 @@ export function DeskPage({
   }, [onReady]);
 
   const beginNavigation = useCallback((nextDestination: DeskObjectDestination) => {
-    if (!introComplete) return;
-    setDestination((currentDestination) => currentDestination ?? nextDestination);
-  }, [introComplete]);
+    if (!introComplete || destinationRef.current) return;
+    destinationRef.current = nextDestination;
+    setDestination(nextDestination);
+    if (nextDestination === '/projects') onProjectNavigationStart?.();
+  }, [introComplete, onProjectNavigationStart]);
 
   const startNavigation = (event: MouseEvent<HTMLAnchorElement>, nextDestination: DeskObjectDestination) => {
     event.preventDefault();

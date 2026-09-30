@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BackToDeskLink } from '../components/BackToDeskLink';
+import { KeyboardBubbles } from '../components/KeyboardBubbles';
 import { KeyboardInteractiveScene } from '../components/KeyboardInteractiveScene';
 import { KeyboardSkillCard } from '../components/KeyboardSkillCard';
 import { KEYBOARD_SKILLS, type KeyboardSkillKey } from '../data/keyboardSkills';
-import { IntroPage } from './IntroPage';
+import { IntroPage, LOADING_TEXT } from './IntroPage';
 
 function isSkillKey(value: string): value is KeyboardSkillKey {
   return Object.prototype.hasOwnProperty.call(KEYBOARD_SKILLS, value)
@@ -17,6 +18,9 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
   // Kept mounted (with its previous skillKey) while the exit animation plays, even after
   // activeSkill has already moved to null -- see KeyboardSkillCard's show/onExited props.
   const [renderedSkill, setRenderedSkill] = useState<KeyboardSkillKey | null>(null);
+  // "키보드 클릭해봐!" waits for the entrance camera move to settle.
+  const [cameraSettled, setCameraSettled] = useState(false);
+  const handleCameraIntroComplete = useCallback(() => setCameraSettled(true), []);
 
   useEffect(() => {
     if (activeSkill !== null) setRenderedSkill(activeSkill);
@@ -69,8 +73,15 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
             onKeyPress={handleKeyPress}
             onBackgroundClick={handleBackgroundClick}
             playCameraIntro={!showLoader}
+            onCameraIntroComplete={handleCameraIntroComplete}
           />
         </section>
+        {/* Click hint while no card is up; the skill bubble shows with a card and leaves
+            with it. */}
+        <KeyboardBubbles
+          showClickHint={cameraSettled && !showLoader && activeSkill === null}
+          showSkillHint={activeSkill !== null}
+        />
         {renderedSkill && (
           <KeyboardSkillCard
             skillKey={renderedSkill}
@@ -79,7 +90,7 @@ export function KeyboardPage({ onBackToDesk }: { onBackToDesk: () => void }) {
           />
         )}
       </main>
-      {showLoader && <IntroPage ready={sceneReady} onFinish={() => setShowLoader(false)} />}
+      {showLoader && <IntroPage text={LOADING_TEXT.keyboard} ready={sceneReady} onFinish={() => setShowLoader(false)} />}
     </>
   );
 }
