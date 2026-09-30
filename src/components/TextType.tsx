@@ -80,16 +80,20 @@ export function TextType({
   }, [startOnVisible]);
 
   useEffect(() => {
-    if (showCursor && cursorRef.current) {
-      gsap.set(cursorRef.current, { opacity: 1 });
-      gsap.to(cursorRef.current, {
-        opacity: 0,
-        duration: cursorBlinkDuration,
-        repeat: -1,
-        yoyo: true,
-        ease: 'power2.inOut',
-      });
-    }
+    const cursor = cursorRef.current;
+    if (!showCursor || !cursor) return undefined;
+    gsap.set(cursor, { opacity: 1 });
+    const blink = gsap.to(cursor, {
+      opacity: 0,
+      duration: cursorBlinkDuration,
+      repeat: -1,
+      yoyo: true,
+      ease: 'power2.inOut',
+    });
+    // Infinite tween: kill it on unmount (IntroPage remounts this to retype) so they don't pile up.
+    return () => {
+      blink.kill();
+    };
   }, [showCursor, cursorBlinkDuration]);
 
   useEffect(() => {

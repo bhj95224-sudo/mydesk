@@ -31,6 +31,10 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  /* Desk-page floating shadow (decor objects + tapes). */
+  --float-shadow-color: rgba(202, 188, 186, .75); /* #CABCBA */
+  --float-shadow-offset: .9vh;
+  --float-shadow-blur: .9vh;
 }
 
 * { box-sizing: border-box; }
@@ -198,6 +202,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   max-width: none;
   user-select: none;
   pointer-events: none;
+  /* Soft #CABCBA shadow cast below the floating objects (--float-shadow-*, see :root);
+     sized in vh so it scales with them. It sits inside the float wrapper, so it bobs along
+     with each object. */
+  filter: drop-shadow(0 var(--float-shadow-offset) var(--float-shadow-blur) var(--float-shadow-color));
 }
 @keyframes deskDecorPop {
   from { opacity: 0; transform: translateY(14px) scale(.72); }
@@ -256,9 +264,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .desk-bubble__motion,
   .desk-bubble.is-visible .desk-bubble__motion { transform: none; filter: none; transition: opacity .3s linear; }
 }
+/* --balloon-width / --balloon-text-left: per-bubble Figma px, set inline (DeskBubbles). */
 .desk-bubble__balloon {
   position: relative;
-  width: calc(229 * var(--dpx));
+  width: calc(var(--balloon-width, 229) * var(--dpx));
   height: calc(98 * var(--dpx));
 }
 .desk-bubble__balloon img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
@@ -272,9 +281,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   line-height: normal;
   white-space: nowrap;
 }
-.desk-bubble--opal .desk-bubble__balloon span { left: calc(32 * var(--dpx)); }
-.desk-bubble--coffee .desk-bubble__balloon span { left: calc(36 * var(--dpx)); }
-.desk-bubble--marimo .desk-bubble__balloon span { left: calc(47 * var(--dpx)); }
+.desk-bubble__balloon span { left: calc(var(--balloon-text-left, 0) * var(--dpx)); }
 /* Marimo group is 229x233: photo card on top, balloon starting at y=135. */
 .desk-bubble--marimo .desk-bubble__motion { width: calc(229 * var(--dpx)); height: calc(233 * var(--dpx)); }
 .desk-bubble--marimo .desk-bubble__balloon { position: absolute; left: 0; top: calc(135 * var(--dpx)); }
@@ -326,6 +333,33 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   user-select: none;
 }
 .desk-sticker:active { cursor: grabbing; }
+/* Tapes keep their left edge where Figma's 480-wide tape started and grow rightward with
+   longer copy (as in Figma 244:165), instead of growing from the center. */
+.desk-sticker--work-tape,
+.desk-sticker--spin-tape { transform: translate(calc(-240 * var(--dpx)), -50%); }
+/* Tape-click bubbles reuse the .desk-bubble look/motion; their text is centered in the
+   balloon. Placed in the (rotated) tape wrap so its tail tip -- (104.5, 98) in the 229x98
+   balloon -- lands --bubble-along px along the tape's top edge and --bubble-gap px above
+   it, then rotated back upright around that tip. */
+.desk-bubble.desk-bubble--sticker {
+  z-index: 10;
+  left: calc((var(--bubble-along) - 104.5) * var(--dpx));
+  top: calc((-98 - var(--bubble-gap)) * var(--dpx));
+  transform: rotate(calc(-1 * var(--tape-rotation)));
+  transform-origin: calc(104.5 * var(--dpx)) calc((98 + var(--bubble-gap)) * var(--dpx));
+  pointer-events: none;
+}
+.desk-bubble--sticker .desk-bubble__balloon span { left: 50%; transform: translateX(-50%); }
+/* Note bubble: sits beside the note (which clips overflow), balloon top-left at the note's
+   left edge and 116 Figma px above it. */
+.desk-sticker__note-wrap { position: relative; }
+.desk-bubble.desk-bubble--note {
+  z-index: 10;
+  left: 0;
+  top: calc(-116 * var(--dpx));
+  transform: none;
+  pointer-events: none;
+}
 /* Just appears (fade-in) on first entry -- no pop, no float. */
 .desk-sticker__entrance { opacity: 1; }
 .desk-stickers.is-waiting .desk-sticker__entrance { opacity: 0; }
@@ -338,15 +372,35 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   .desk-stickers.is-revealed .desk-sticker__entrance { animation: none; opacity: 1; }
 }
 
+/* Width follows the label (never narrower than the Figma 480) so longer copy like
+   "아무거나 눌러봐!" isn't clipped. */
 .desk-sticker__tape {
   position: relative;
-  width: calc(480 * var(--dpx));
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: calc(480 * var(--dpx));
   height: calc(109 * var(--dpx));
+  padding: 0 calc(60 * var(--dpx)) 0 calc(214 * var(--dpx));
   overflow: hidden;
   background: rgba(255, 255, 255, .51);
 }
-.desk-sticker__tape--work { transform: rotate(-8.85deg); }
-.desk-sticker__tape--spin { transform: rotate(19.01deg); }
+/* The tape's rotation lives on this wrap (not on the tape, which clips overflow) so the
+   click bubble can hang off the tape without being cut off. */
+.desk-sticker__tape-wrap { position: relative; transform: rotate(var(--tape-rotation)); }
+/* Same floating shadow as the decor objects. It is drawn in the tape's rotated space, so
+   the offset is counter-rotated (sin/cos of the tilt) to still fall straight down. */
+.desk-sticker__tape {
+  filter: drop-shadow(
+    calc(sin(var(--tape-rotation)) * var(--float-shadow-offset))
+    calc(cos(var(--tape-rotation)) * var(--float-shadow-offset))
+    var(--float-shadow-blur)
+    var(--float-shadow-color)
+  );
+}
+.desk-sticker__tape-wrap--work { --tape-rotation: -8.85deg; }
+.desk-sticker__tape-wrap--spin { --tape-rotation: 19.01deg; }
 .desk-sticker__tape-block {
   position: absolute;
   left: 0;
@@ -357,7 +411,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .desk-sticker__tape--work .desk-sticker__tape-block { background: rgba(255, 97, 97, .51); }
 .desk-sticker__tape--spin .desk-sticker__tape-block { background: rgba(97, 147, 255, .51); }
 .desk-sticker__tape-text {
-  position: absolute;
+  position: relative;
   color: #000;
   font-family: "Cafe24 Ssurround Air", "Pretendard", sans-serif;
   font-weight: 300;
@@ -365,10 +419,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   line-height: normal;
   white-space: nowrap;
 }
-/* "눌러봐!" is the same width as "돌려봐!", so it uses that label's inset (Figma's 197.68
-   was for the longer "작업하자"). */
-.desk-sticker__tape--work .desk-sticker__tape-text { left: calc(214 * var(--dpx)); top: calc(22.21 * var(--dpx)); }
-.desk-sticker__tape--spin .desk-sticker__tape-text { left: calc(214 * var(--dpx)); top: calc(24 * var(--dpx)); }
 
 .desk-sticker__note {
   position: relative;
@@ -406,71 +456,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 
 /* Monitor destination: stacked project browser. */
 .browser-page { background: #fbfdfb; }
-.monitor-entry-transition {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  overflow: hidden;
-  pointer-events: auto;
-}
-.monitor-entry-transition::before,
-.monitor-entry-transition::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  right: 0;
-  left: 0;
-  height: calc(50% + 1px);
-  background-image: linear-gradient(180deg, #ffffff 0.25%, #fbeee6 52.9%, #ede4e7 103.5%);
-  background-repeat: no-repeat;
-  background-size: 100vw 100vh;
-  transition: transform .68s cubic-bezier(.76, 0, .24, 1);
-  will-change: transform;
-}
-.monitor-entry-transition::before {
-  top: 0;
-  background-position: top left;
-  border-bottom: 1px solid rgba(83, 77, 142, .3);
-  box-shadow: 0 1px 18px rgba(83, 77, 142, .18);
-}
-.monitor-entry-transition::after {
-  bottom: 0;
-  background-position: bottom left;
-  border-top: 1px solid rgba(83, 77, 142, .3);
-  box-shadow: 0 -1px 18px rgba(83, 77, 142, .18);
-}
-.monitor-entry-transition.is-opening { pointer-events: none; }
-.monitor-entry-transition.is-opening::before { transform: translateY(-100%); }
-.monitor-entry-transition.is-opening::after { transform: translateY(100%); }
-.monitor-entry-transition__line {
-  position: absolute;
-  z-index: 2;
-  top: 50%;
-  right: 0;
-  left: 0;
-  overflow: hidden;
-  height: 1px;
-  background: rgba(83, 77, 142, .16);
-  box-shadow: 0 0 18px rgba(83, 77, 142, .18);
-  transform: translateY(-50%);
-  transition: opacity .1s;
-}
-.monitor-entry-transition__line::after {
-  content: "";
-  display: block;
-  width: 0;
-  height: 100%;
-  background: linear-gradient(90deg, #534d8e, #df2684 68%, #fff0f7);
-  box-shadow: 0 0 14px rgba(223, 38, 132, .45);
-  animation: monitorEntryProgress .62s cubic-bezier(.65, 0, .35, 1) forwards;
-}
-.monitor-entry-transition.is-opening .monitor-entry-transition__line { opacity: 0; }
-@keyframes monitorEntryProgress {
-  0% { width: 0; }
-  30% { width: 22%; }
-  72% { width: 76%; }
-  100% { width: 100%; }
-}
 .browser-tint {
   position: absolute;
   inset: 0;
@@ -480,7 +465,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   opacity: .6;
   transition: background-image .6s ease;
 }
-.browser-decor { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; transform: translateX(100px); }
+.browser-decor { position: absolute; inset: 0; z-index: 9; overflow: visible; pointer-events: none; }
 .browser-decor__float { position: absolute; will-change: transform; }
 .browser-decor__drift { display: block; width: 100%; height: 100%; will-change: transform; }
 .browser-decor__item { display: block; width: 100%; height: 100%; object-fit: contain; }
@@ -508,25 +493,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   transition: top .5s ease, background-color .5s ease;
 }
 .browser-header { height: 50px; z-index: 8; }
+.browser-page .browser-header { z-index: 10; }
 .browser-header > span { display: none; }
 .back-link { text-decoration: none; display: inline-flex; align-items: center; gap: 12px; background: #df2684; padding: 8px 15px; border-radius: 9999px; color: #ffffff; }
 .back-link:hover { color: #ffffff; }
 .back-arrow { display: block; flex: none; width: 25px; height: 25px; }
-.back-link:hover .back-arrow { animation: arrowLoop .7s ease-in-out; }
+/* Loops for as long as the pointer stays on the button; no animation on click. */
+.back-link:hover .back-arrow { animation: arrowLoop 1.4s ease-in-out infinite; }
 @keyframes arrowLoop {
   0% { transform: translateX(0); opacity: 1; }
   45% { transform: translateX(-18px); opacity: 0; }
   55% { transform: translateX(18px); opacity: 0; }
   100% { transform: translateX(0); opacity: 1; }
-}
-/* Click: a small wind-up to the right, then the arrow shoots off left; navigation waits
-   for this to end (BackToDeskLink). */
-.back-link.is-departing { pointer-events: none; }
-.back-link.is-departing .back-arrow { animation: arrowDepart .5s cubic-bezier(.5, 0, .2, 1) forwards; }
-@keyframes arrowDepart {
-  0% { transform: translateX(0); opacity: 1; }
-  30% { transform: translateX(6px); opacity: 1; }
-  100% { transform: translateX(-26px); opacity: 0; }
 }
 .browser-page.is-leaving, .keyboard-page.is-leaving, .tablet-page.is-leaving, .intro-page.is-leaving {
   pointer-events: none;
@@ -550,7 +528,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   animation: keyboardPageEnter .55s cubic-bezier(.22, 1, .36, 1) both;
 }
 .tablet-page {
-  background: transparent;
+  background: linear-gradient(180deg, #ffffff 0.25%, #fbeee6 52.9%, #ede4e7 103.5%);
   animation: keyboardPageEnter .55s cubic-bezier(.22, 1, .36, 1) both;
 }
 .tablet-page { display: flex; flex-direction: column; }
@@ -577,6 +555,58 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   height: 100%;
   outline: none;
 }
+/* Keyboard-page speech bubbles (KeyboardBubbles, Figma 241:118). The Figma frame is
+   3840x1906 = a 1920x953 viewport at 2x, so --kpx (one Figma px) is 100vw / 3840 and the
+   vertical position is a share of the viewport height. */
+.keyboard-bubbles {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  --kpx: calc(100vw / 3840);
+}
+.keyboard-bubble { position: absolute; top: calc(319 / 1906 * 100vh); }
+.keyboard-bubble--click { left: calc(466 * var(--kpx)); }
+.keyboard-bubble--skill { left: calc(2373 * var(--kpx)); }
+.keyboard-bubble__motion {
+  position: relative;
+  width: calc(308 * var(--kpx));
+  height: calc(132 * var(--kpx));
+  opacity: 0;
+  transform: translateY(calc(-24 * var(--kpx))) scale(.96);
+  filter: blur(3px);
+  transition:
+    opacity .8s cubic-bezier(.45, 0, .55, 1),
+    transform .9s cubic-bezier(.45, 0, .55, 1),
+    filter .8s cubic-bezier(.45, 0, .55, 1);
+}
+.keyboard-bubble.is-visible .keyboard-bubble__motion {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+  transition:
+    opacity .7s cubic-bezier(.33, 1, .68, 1),
+    transform 1s cubic-bezier(.16, 1, .3, 1),
+    filter .6s cubic-bezier(.33, 1, .68, 1);
+}
+.keyboard-bubble__motion img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.keyboard-bubble__motion span {
+  position: absolute;
+  top: calc(35 * var(--kpx));
+  color: #fff;
+  font-family: "Cafe24 Ssurround Air", "Pretendard", sans-serif;
+  font-weight: 300;
+  font-size: calc(24 * var(--kpx));
+  line-height: normal;
+  white-space: nowrap;
+}
+.keyboard-bubble--click .keyboard-bubble__motion span { left: calc(67 * var(--kpx)); }
+.keyboard-bubble--skill .keyboard-bubble__motion span { left: calc(44 * var(--kpx)); }
+@media (prefers-reduced-motion: reduce) {
+  .keyboard-bubble__motion,
+  .keyboard-bubble.is-visible .keyboard-bubble__motion { transform: none; filter: none; transition: opacity .3s linear; }
+}
+
 .keyboard-skill-card {
   position: absolute;
   top: clamp(150px, 23.4vh, 224px);
@@ -632,12 +662,30 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 .tablet-placeholder:active { cursor: grabbing; }
 .tablet-placeholder.is-dragging { z-index: 2; cursor: grabbing; }
+/* Physics positions cards through the individual `translate` / `rotate` properties
+   (useTabletPhysics), so the static `transform` rotation is dropped here and the hover
+   `scale` below grows each card around its own current center. */
 .tablet-physics-stage.is-physics-ready .tablet-placeholder {
   left: 0;
   top: 0;
-  will-change: transform;
+  transform: none;
+  will-change: translate, rotate;
 }
-.tablet-placeholder__content { width: 100%; height: 100%; }
+.tablet-placeholder__content { position: relative; width: 100%; height: 100%; }
+/* Every card grows slightly on hover (a slow, gentle ease rather than a quick pop). Uses
+   the standalone `scale` property, applied around the card's center since physics moves
+   it with `translate` / `rotate` (see above). Clickable cards (with a design, opening the preview
+   window) also get the pointer cursor. */
+.tablet-placeholder {
+  transition: scale .5s cubic-bezier(.25, .8, .35, 1), box-shadow .5s ease;
+}
+.tablet-placeholder:hover {
+  scale: 1.025;
+  box-shadow: 0 12px 26px rgba(60, 55, 48, .13);
+}
+.tablet-placeholder.is-dragging { scale: 1; }
+.tablet-placeholder[role="button"] { cursor: pointer; }
+.tablet-placeholder[role="button"].is-dragging { cursor: grabbing; }
 .tablet-placeholder__image {
   display: block;
   width: 100%;
@@ -656,16 +704,19 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(39, 37, 28, .3);
-  backdrop-filter: blur(3px);
+  /* No dimming or blur: the page behind stays as-is (and interactive). */
+  background: transparent;
   animation: tabletPreviewFadeIn .22s ease both;
+  /* Clicks pass through to the tablet objects behind; only the window catches them. */
+  pointer-events: none;
 }
-.tablet-preview-backdrop--hover { pointer-events: none; }
 .tablet-preview-window {
+  position: relative; /* left/top = drag offset from the centered spot (TabletPage) */
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  width: min(960px, calc(100vw - 48px));
-  max-height: min(640px, calc(100dvh - 64px));
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(520px, calc(100dvh - 64px));
   overflow: hidden;
   border: 1px solid #34332c;
   border-radius: 18px;
@@ -677,11 +728,16 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  min-height: 64px;
-  padding: 0 24px;
+  min-height: 56px;
+  padding: 0 20px;
   border-bottom: 1px solid #34332c;
   background: #fbeee6;
+  /* Drag handle for moving the window. */
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+.tablet-preview-window__header:active { cursor: grabbing; }
 .tablet-preview-window__eyebrow,
 .tablet-preview-window__actions {
   font-family: "SUIT", sans-serif;
@@ -692,7 +748,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .tablet-preview-window__header h2 {
   margin: 0;
   font-family: Georgia, serif;
-  font-size: 29px;
+  font-size: 25px;
   font-weight: 400;
   letter-spacing: -.04em;
 }
@@ -707,26 +763,27 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   place-items: center;
   width: 32px;
   height: 32px;
-  padding: 0 0 2px;
+  padding: 0;
   border: 0;
-  color: #34332c;
   background: transparent;
-  font-size: 29px;
-  line-height: 1;
   cursor: pointer;
 }
+.tablet-preview-window__close img { display: block; width: 20px; height: 20px; }
 .tablet-preview-window__close:focus-visible { outline: 2px solid #34332c; outline-offset: 2px; }
+/* No scrolling: the image is capped to whatever height is left in the window (window max
+   520px / viewport, minus the 56px header and 16px padding top+bottom) and shrinks to fit. */
 .tablet-preview-window__body {
   min-height: 0;
-  padding: 20px;
-  overflow: auto;
+  padding: 16px;
+  overflow: hidden;
   background: #fbeee6;
 }
 .tablet-preview-window__body img {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
-  max-height: min(460px, calc(100dvh - 210px));
+  max-height: min(430px, calc(100dvh - 156px));
   margin: auto;
   border: 1px solid #34332c;
   border-radius: 10px;
@@ -757,7 +814,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .tablet-physics-stage.is-physics-ready .tablet-physics-object {
   left: 0;
   top: 0;
-  will-change: transform;
+  transform: none;
+  will-change: translate, rotate;
 }
 .tablet-physics-object__image {
   display: block;
@@ -777,6 +835,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   inset: 0;
   z-index: 100;
   background: #fbfaf6;
+}
+/* Mid-session loaders (returning to the desk) fade in over the current page. */
+.intro-page.is-fading-in:not(.is-leaving) { animation: introPageFadeIn .35s ease-out both; }
+@keyframes introPageFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .app-route-stack { min-height: 100%; }
@@ -810,7 +874,46 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   justify-content: center;
   gap: 18px;
 }
-.intro-text.text-type { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: #534d8e; }
+.intro-text { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: #534d8e; }
+.intro-text--css { position: relative; display: inline-block; white-space: pre; }
+/* Per-character typing loop; the keyframes are generated in IntroPage.tsx. */
+.intro-text__char {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  will-change: opacity;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+/* Starts at the line's left edge; its generated keyframes step it to the end of each
+   character as that character appears. */
+.intro-text__cursor-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+.intro-text__cursor {
+  display: inline-block;
+  will-change: opacity;
+  animation: introCursorBlink 1s steps(1, end) infinite;
+}
+/* Freeze the fully written line while the screen fades out. */
+.intro-page.is-leaving .intro-text__char,
+.intro-page.is-leaving .intro-text__cursor-track,
+.intro-page.is-leaving .intro-text__cursor { animation-play-state: paused; }
+@keyframes introCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-text__char { animation: none !important; opacity: 1; }
+  .intro-text__cursor-track { display: none; }
+}
 
 /* Lattice Loader: ported from reactbits.dev/micro/lattice-loader. */
 .lattice-loader {
@@ -873,7 +976,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .text-type { display: inline-block; white-space: pre-wrap; }
 .text-type__cursor { margin-left: 0.25rem; display: inline-block; opacity: 1; }
 .text-type__cursor--hidden { display: none; }
-.browser-layout { position: relative; z-index: 1; display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 30px; height: min(900px, calc(100vh - 115px)); margin-top: 30px; }
+.browser-layout { position: relative; display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 30px; height: min(900px, calc(100vh - 115px)); margin-top: 30px; }
+.project-monitor { position: absolute; top: 7%; bottom: -15%; left: 41%; right: 5%; min-width: 0; }
+.project-monitor__scene { position: absolute; inset: 0; pointer-events: none; }
+.project-monitor__scene canvas { display: block; width: 100%; height: 100%; }
 .project-intro { position: relative; z-index: 5; padding: 0; }
 .project-intro .eyebrow { display: none; }
 .project-count { border-left: 1px solid #aaa; padding-left: 20px; color: #777; }
@@ -886,12 +992,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .project-details { position: absolute; top: 345px; width: min(100%, 490px); padding: 18px; background: #fff; border: 1px solid #ddd; border-radius: 14px; box-shadow: 0 20px 45px rgba(0,0,0,.12); z-index: 10; }
 .project-details p { line-height: 1.5; }
 .project-details small { display: block; color: #666; line-height: 1.5; }
-.window-stage { position: absolute; top: 0; right: 0; left: 30%; height: calc(100% - 60px); min-width: 0; perspective: 900px; overflow: visible; }
-.project-window { position: absolute; width: calc(100% - 310px); height: min(600px, calc(100% - 190px)); border: 1px solid var(--project-border); border-radius: 44px; overflow: hidden; background: #fff; box-shadow: 0 6px 0 rgba(0,0,0,.015); transform-style: preserve-3d; backface-visibility: hidden; will-change: left, top, transform; transition: left .8s cubic-bezier(.22,1,.36,1), top .8s cubic-bezier(.22,1,.36,1); }
-.project-window--depth-0 { left: 310px; top: 0; z-index: 1; }
-.project-window--depth-1 { left: 240px; top: 60px; z-index: 2; }
-.project-window--depth-2 { left: 170px; top: 120px; z-index: 3; }
-.project-window--depth-3 { left: 100px; top: 180px; z-index: 4; }
+.window-stage { position: absolute; z-index: 3; min-width: 0; overflow: hidden; border-radius: 1.4%; }
+.project-window { position: absolute; width: 79%; height: 70%; border: 1px solid var(--project-border); border-radius: clamp(18px, 2vw, 36px); overflow: hidden; background: #fff; box-shadow: 0 6px 0 rgba(0,0,0,.015); backface-visibility: hidden; will-change: left, top, transform; transition: left .8s cubic-bezier(.22,1,.36,1), top .8s cubic-bezier(.22,1,.36,1); }
+.project-window--depth-0 { left: 18%; top: 1%; z-index: 1; }
+.project-window--depth-1 { left: 14%; top: 7%; z-index: 2; }
+.project-window--depth-2 { left: 10%; top: 15%; z-index: 3; }
+.project-window--depth-3 { left: 6%; top: 23%; z-index: 4; }
 .project-window__bar { display: flex; align-items: center; gap: 12px; width: 100%; height: 50px; padding: 0 37px; border: 0; background: #fff; color: inherit; text-align: left; cursor: pointer; }
 .project-window__bar:focus-visible { outline: 3px solid #382a83; outline-offset: -4px; }
 .project-window__status { width: 13px; height: 13px; border-radius: 50%; background: var(--project-accent); }
@@ -949,12 +1055,7 @@ a.project-window__action:focus-visible { outline: 3px solid #382a83; outline-off
 
 @media (max-width: 1200px) {
   .browser-layout { grid-template-columns: 34% minmax(0, 1fr); gap: 15px; }
-  .project-window { width: calc(100% - 18vw); }
-  .project-window--depth-0 { left: 18vw; top: 0; }
-  .project-window--depth-1 { left: 13vw; top: 5vw; }
-  .project-window--depth-2 { left: 8vw; top: 10vw; }
-  .project-window--depth-3 { left: 3vw; top: 15vw; }
-  .browser-decor { display: none; }
+  .project-monitor { left: 39%; right: 3%; }
 }
 @media (min-width: 761px) and (max-width: 1500px) {
   .keyboard-skill-card { width: 336px; height: 400px; padding: 42px 32px; border-radius: 42px; }
@@ -997,16 +1098,15 @@ a.project-window__action:focus-visible { outline: 3px solid #382a83; outline-off
   }
   .tablet-physics-stage.is-physics-ready { display: block; padding: 0; }
   .browser-layout { display: flex; flex-direction: column; height: auto; gap: 24px; }
+  .project-monitor { position: relative; inset: auto; flex: none; width: 100%; height: min(80vw, 400px); }
+  .browser-decor { display: none; }
   .project-intro { padding-top: 0; }
+  .project-text-anim { position: static; gap: 12px; }
   .project-intro h1 { position: static; font-size: 48px; margin: 0 0 18px; }
   .project-description { position: static; max-width: 100%; min-height: 0; font-size: 16px; }
   .project-details { top: 195px; }
-  .window-stage { position: relative; inset: auto; width: 100%; height: min(72vw, 500px); margin-bottom: 40px; }
-  .project-window { width: calc(100% - 12vw); height: calc(100% - 12vw); border-radius: 18px; border-width: 1px; }
-  .project-window--depth-0 { left: 12vw; top: 0; }
-  .project-window--depth-1 { left: 8vw; top: 4vw; }
-  .project-window--depth-2 { left: 4vw; top: 8vw; }
-  .project-window--depth-3 { left: 0; top: 12vw; }
+  .window-stage { position: absolute; border-radius: 2%; }
+  .project-window { border-radius: 14px; }
   .project-window__bar { height: 35px; padding: 0 12px; gap: 8px; }
   .project-window__action { top: 5px; right: 12px; width: 25px; height: 25px; }
   .project-window__title { font-size: 12px; }

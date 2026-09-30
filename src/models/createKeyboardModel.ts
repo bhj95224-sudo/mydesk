@@ -366,7 +366,11 @@ function isLightColor(hex: string): boolean {
   return hex === IVORY || hex === SALMON;
 }
 
-type AtlasBinding = { material: THREE.MeshStandardMaterial; uv: UVRect };
+// sideMaterials: when given, keys of the same color share one side material (atlas mode,
+// i.e. the desk page's small keyboard) -- ~80 per-key materials down to a handful, which is
+// much less first-frame work. The interactive /keyboard page doesn't pass it, since its
+// per-key hover highlight tints a key's own materials.
+type AtlasBinding = { material: THREE.MeshStandardMaterial; uv: UVRect; sideMaterials: Map<string, THREE.MeshStandardMaterial> };
 
 function buildKeycapMesh(
   key: KeyDef,
@@ -397,7 +401,11 @@ function buildKeycapMesh(
     topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.5, metalness: 0.05 });
   }
 
-  const sideMat = new THREE.MeshStandardMaterial({ color: key.color, roughness: 0.55, metalness: 0.05 });
+  let sideMat = atlas?.sideMaterials.get(key.color);
+  if (!sideMat) {
+    sideMat = new THREE.MeshStandardMaterial({ color: key.color, roughness: 0.55, metalness: 0.05 });
+    atlas?.sideMaterials.set(key.color, sideMat);
+  }
   // BoxGeometry face material order: [+x, -x, +y(top), -y(bottom), +z, -z]
   const mats = [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
   const mesh = new THREE.Mesh(geo, mats);
@@ -457,6 +465,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
     atlasUvRects = atlas.uvRects;
   }
 
+  const sideMaterials = new Map<string, THREE.MeshStandardMaterial>();
   for (const [index, key] of keyList.entries()) {
     const x = colToX(key.col, key.w, caseW);
     const z = rowToZ(key.row, key.d);
@@ -464,7 +473,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
     const mesh = buildKeycapMesh(
       key,
       geometryCache,
-      atlasMaterial && atlasUvRects ? { material: atlasMaterial, uv: atlasUvRects[index] } : undefined,
+      atlasMaterial && atlasUvRects ? { material: atlasMaterial, uv: atlasUvRects[index], sideMaterials } : undefined,
     );
     setShadow(mesh);
 

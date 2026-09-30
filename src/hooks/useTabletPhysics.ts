@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import {
   Bodies,
   Body,
@@ -17,7 +17,18 @@ const STAGE_SIDE_GAP = 16;
 export function useTabletPhysics(
   stageRef: RefObject<HTMLElement | null>,
   items: readonly TabletPhysicsItem[],
+  // The world is built right away (items parked above the stage), but nothing is dropped
+  // until this is true -- the page holds it off while its loading screen is up.
+  dropEnabled = true,
 ) {
+  const dropEnabledRef = useRef(dropEnabled);
+  dropEnabledRef.current = dropEnabled;
+  const startDropRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (dropEnabled) startDropRef.current?.();
+  }, [dropEnabled]);
+
   useEffect(() => {
     const stage = stageRef.current;
 
@@ -39,6 +50,15 @@ export function useTabletPhysics(
       1,
       Math.max(0.58, (stage.clientWidth - STAGE_SIDE_GAP * 2) / maxItemWidth),
     );
+
+    // Each item's staggered release, run once dropping is allowed (see dropEnabled).
+    const releases: (() => void)[] = [];
+    let dropStarted = false;
+    const startDrop = () => {
+      if (dropStarted) return;
+      dropStarted = true;
+      releases.forEach((release) => release());
+    };
 
     const placeholderBodies = items.flatMap((item, index) => {
       const element = stage.querySelector<HTMLElement>(`[data-physics-id="${item.id}"]`);
@@ -70,13 +90,15 @@ export function useTabletPhysics(
       bodyElements.set(body.id, element);
       bodyItems.set(body.id, item);
 
-      const timer = window.setTimeout(() => {
-        Composite.add(engine.world, body);
-        const direction = index % 2 === 0 ? -1 : 1;
-        Body.setVelocity(body, { x: direction * 0.25, y: 0 });
-        Body.setAngularVelocity(body, direction * (0.003 + index * 0.0004));
-      }, item.spawnDelay);
-      releaseTimers.push(timer);
+      releases.push(() => {
+        const timer = window.setTimeout(() => {
+          Composite.add(engine.world, body);
+          const direction = index % 2 === 0 ? -1 : 1;
+          Body.setVelocity(body, { x: direction * 0.25, y: 0 });
+          Body.setAngularVelocity(body, direction * (0.003 + index * 0.0004));
+        }, item.spawnDelay);
+        releaseTimers.push(timer);
+      });
 
       return [body];
     });
@@ -137,7 +159,10 @@ export function useTabletPhysics(
 
         const width = item.width * currentScale;
         const height = item.height * currentScale;
-        element.style.transform = `translate3d(${body.position.x - width / 2}px, ${body.position.y - height / 2}px, 0) rotate(${body.angle}rad)`;
+        // Individual `translate`/`rotate` (not `transform`), so CSS `scale` on hover grows the
+        // card around its own center instead of the stage origin.
+        element.style.translate = `${body.position.x - width / 2}px ${body.position.y - height / 2}px`;
+        element.style.rotate = `${body.angle}rad`;
       });
     };
 
@@ -152,6 +177,8 @@ export function useTabletPhysics(
     stage.classList.add('is-physics-ready');
     syncElements();
     animationFrame = requestAnimationFrame(runPhysics);
+    startDropRef.current = startDrop;
+    if (dropEnabledRef.current) startDrop();
 
     const resizeObserver = new ResizeObserver(() => {
       const nextScale = Math.min(
@@ -179,6 +206,7 @@ export function useTabletPhysics(
     resizeObserver.observe(stage);
 
     return () => {
+      startDropRef.current = null;
       releaseTimers.forEach(window.clearTimeout);
       cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
@@ -193,7 +221,8 @@ export function useTabletPhysics(
         element.classList.remove('is-dragging');
         element.style.removeProperty('width');
         element.style.removeProperty('height');
-        element.style.removeProperty('transform');
+        element.style.removeProperty('translate');
+        element.style.removeProperty('rotate');
       });
     };
   }, [items, stageRef]);

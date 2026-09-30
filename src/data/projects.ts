@@ -2,11 +2,14 @@ export type DecorItem = {
   src: string;
   width: number | string;
   height: number | string;
-  /** Percentage of the page (relative to the 1920x1080 reference frame) so position holds across viewport sizes. */
+  /** Original 1920x1080 page coordinates; ProjectDecor rebases them to the monitor screen. */
   left: string;
   top: string;
   rotate?: number;
   flipY?: boolean;
+  /** Extra distance after viewport clamping, in reference-page pixels. */
+  overflowOffsetX?: number;
+  overflowOffsetY?: number;
 };
 
 export type Project = {
@@ -30,6 +33,7 @@ export type Project = {
   progressSegment: string;
   /** Window content image exported from Figma. Undefined = plain color panel (design has no visual yet). */
   contentImage?: string;
+  contentVideo?: string;
   contentBg?: string;
   externalUrl?: string;
   /** Floating decorative objects shown only while this project is active, at their Figma-specified position. */
@@ -43,7 +47,7 @@ const projectCatalog: Project[] = [
     name: 'Sulwhasoo',
     displayName: 'Sulwhasoo',
     category: 'PROJECT',
-    description: '프로젝트 소개 문구와 담당 범위를 입력할 예정입니다.',
+    description: '한국의 전통성과 예술성, 설화수만의 뚜렷한 정체성과 오래도록\n이어져온 브랜드의 역사를 더욱 표현하고자 리디자인한 프로젝트\n입니다.',
     accent: '#ee7729',
     idleAccent: '#FCD3B7',
     borderColor: '#c6ad96',
@@ -54,10 +58,11 @@ const projectCatalog: Project[] = [
     progressTrack: '#DFC4B3',
     progressSegment: '#E37D34',
     contentImage: '/assets/projects/sulwhasoo-project-preview.jpeg',
+    contentVideo: '/assets/projects/sulwhasoo-preview.mp4',
     externalUrl: 'https://harperppppppp.github.io/sulwhasoo/',
     decor: [
-      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '59.78%', rotate: -129.31, flipY: true },
-      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '42.37%', rotate: -50.69 },
+      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '67.78%', rotate: -129.31, flipY: true, overflowOffsetX: 270, overflowOffsetY: 310 },
+      { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '50.37%', rotate: -50.69 },
       { src: '/assets/projects/sulwhasoo-sprig.png', width: '23.06vh', height: '23.06vh', left: '21.67%', top: '38.76%' },
       { src: '/assets/projects/sulwhasoo-sprig.png', width: '15.37vh', height: '15.37vh', left: '67.76%', top: '81.07%' },
     ],
@@ -67,7 +72,7 @@ const projectCatalog: Project[] = [
     name: '자두야',
     displayName: '자두야',
     category: 'MOBILE APP',
-    description: '혼자 사는 사람의 생활 관리를 돕는 모바일 서비스입니다. 포트폴리오에 표시할 개인 기여 범위는 확정 후 추가합니다.',
+    description: '혼자 사는 사람의 생활 관리를 돕는 모바일 서비스입니다. 자취에\n필요한 모든 것들을 한 앱에 담아 실용적이고 친근하게 다가갈 수\n있도록 디자인하고 개발하였습니다.',
     accent: '#b43936',
     idleAccent: '#E8C3C2',
     borderColor: '#e4908e',
@@ -78,6 +83,7 @@ const projectCatalog: Project[] = [
     progressTrack: '#F0AF64',
     progressSegment: '#B43936',
     contentImage: '/assets/projects/jaduya-content.png',
+    contentVideo: '/assets/projects/jaduya-preview.mp4',
     externalUrl: 'https://jaduya.vercel.app/login',
     decor: [],
   },
@@ -86,7 +92,7 @@ const projectCatalog: Project[] = [
     name: 'beplain',
     displayName: '비플레인',
     category: 'WEB REDESIGN',
-    description: '리디자인이 필요한 웹페이지를 작업하였습니다.\n비플레인은 브랜드 소개 페이지가 없었기 때문에 저만의 방식으로\n디자인을 변경하였습니다.',
+    description: '개인적으로도 매우 잘 쓰는 제품의 브랜드 소개 페이지가 없었기\n때문에 브랜드의 컬러와 저만의 스타일을 접목시켜 브랜드 소개\n페이지를 제작하였습니다.',
     accent: '#62d91d',
     idleAccent: '#D7F4BC',
     borderColor: '#85a793',
@@ -101,7 +107,7 @@ const projectCatalog: Project[] = [
       { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '11.09%', top: '25.00%', rotate: -49.91 },
       { src: '/assets/projects/beplain-orb.png', width: '7vh', height: '7vh', left: '27.81%', top: '57.87%' },
       { src: '/assets/projects/beplain-star.svg', width: '20vh', height: '20vh', left: '20.73%', top: '75.83%' },
-      { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '69.27%', top: '76.30%', rotate: -44.55 },
+      { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '69.27%', top: '76.30%', rotate: -44.55, overflowOffsetX: 180, overflowOffsetY: 130 },
     ],
   },
   {

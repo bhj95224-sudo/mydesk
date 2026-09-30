@@ -18,6 +18,8 @@ type KeyboardInteractiveSceneProps = {
   // Until then the camera holds the FROM framing -- the page flips this once its loader
   // is gone so the move is actually seen.
   playCameraIntro?: boolean;
+  // Called once the entrance camera move has settled on its final framing.
+  onCameraIntroComplete?: () => void;
 };
 
 export type KeyboardCameraSettings = {
@@ -85,11 +87,14 @@ export function KeyboardInteractiveScene({
   onKeyPress,
   onBackgroundClick,
   playCameraIntro = true,
+  onCameraIntroComplete,
 }: KeyboardInteractiveSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Read by the render loop.
   const playCameraIntroRef = useRef(playCameraIntro);
   playCameraIntroRef.current = playCameraIntro;
+  const onCameraIntroCompleteRef = useRef(onCameraIntroComplete);
+  onCameraIntroCompleteRef.current = onCameraIntroComplete;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -119,6 +124,16 @@ export function KeyboardInteractiveScene({
     scene.add(createKeyboardLookDevLights());
 
     const interactions = attachKeyboardInteractions(renderer, camera, model, onKeyPress, onBackgroundClick);
+
+    // Typing on the real keyboard presses the matching model key too (motion only -- the
+    // page's own keydown handler takes care of the card). Same filters as that handler.
+    const handlePhysicalKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (!event.code.startsWith('Key')) return;
+      interactions.pressKey(event.code.slice(3));
+    };
+    window.addEventListener('keydown', handlePhysicalKeyDown);
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let introStart: number | null = null;
@@ -212,11 +227,16 @@ export function KeyboardInteractiveScene({
 
     let frameId = 0;
     let readyNotified = false;
+    let introCompleteNotified = false;
     const render = (now: number) => {
       const nextSettings = currentCameraSettings(now);
       if (nextSettings !== framedSettings) {
         framedSettings = nextSettings;
         frameCamera();
+      }
+      if (introDone && !introCompleteNotified) {
+        introCompleteNotified = true;
+        onCameraIntroCompleteRef.current?.();
       }
       interactions(now);
       renderer.render(scene, camera);
@@ -236,6 +256,7 @@ export function KeyboardInteractiveScene({
       cancelAnimationFrame(frameId);
       window.clearInterval(autoPressTimer);
       resizeObserver.disconnect();
+      window.removeEventListener('keydown', handlePhysicalKeyDown);
       interactions.dispose();
       environment.dispose();
 

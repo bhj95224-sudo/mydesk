@@ -18,6 +18,9 @@ export type UpdateFn = ((now: number) => void) & {
   dispose: () => void;
   // Plays the press motion on a random idle pressable key -- motion only, no onKeyPress.
   pressRandomKey: () => void;
+  // Plays the press motion on the pressable key with this label (e.g. from a physical key
+  // press) -- motion only, no onKeyPress. No-op for keys that aren't pressable.
+  pressKey: (letter: string) => void;
 };
 
 export function attachKeyboardInteractions(
@@ -144,6 +147,15 @@ export function attachKeyboardInteractions(
         }
       }
     }
+  };
+
+  update.pressKey = (letter: string) => {
+    const target = letter.toUpperCase();
+    const anim = [...anims.values()].find((candidate) => candidate.group.userData.key.toUpperCase() === target);
+    if (!anim) return;
+    // Restart even mid-press so a fast repeat still reads as a new keystroke.
+    anim.state = 'pressing';
+    anim.phaseStart = performance.now();
   };
 
   update.pressRandomKey = () => {

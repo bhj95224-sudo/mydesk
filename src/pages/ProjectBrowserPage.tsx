@@ -1,10 +1,12 @@
 import gsap from 'gsap';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, WheelEvent as ReactWheelEvent } from 'react';
 import { AnimatedContent } from '../components/AnimatedContent';
 import { BackToDeskLink } from '../components/BackToDeskLink';
+import { IntroPage, LOADING_TEXT } from './IntroPage';
 import { ProjectArtwork } from '../components/ProjectArtwork';
 import { ProjectDecor } from '../components/ProjectDecor';
+import { ProjectMonitorScene, type MonitorScreenBounds } from '../components/ProjectMonitorScene';
 import { ProjectSlidesWindow } from '../components/ProjectSlidesWindow';
 import { projects, type Project } from '../data/projects';
 
@@ -14,44 +16,19 @@ type WindowSlot = {
   zIndex: number;
 };
 
-type EntryTransitionPhase = 'drawing' | 'opening' | 'complete';
+// Stack depth of the front-most project window.
 const FRONT_WINDOW_DEPTH = 3;
 
-function MonitorEntryTransition() {
-  const [phase, setPhase] = useState<EntryTransitionPhase>('drawing');
-
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setPhase('complete');
-      return undefined;
-    }
-
-    const openingTimer = window.setTimeout(() => setPhase('opening'), 620);
-    const completeTimer = window.setTimeout(() => setPhase('complete'), 1300);
-
-    return () => {
-      window.clearTimeout(openingTimer);
-      window.clearTimeout(completeTimer);
-    };
-  }, []);
-
-  if (phase === 'complete') return null;
-
-  return (
-    <div
-      className={`monitor-entry-transition${phase === 'opening' ? ' is-opening' : ''}`}
-      aria-hidden="true"
-    >
-      <span className="monitor-entry-transition__line" />
-    </div>
-  );
-}
-
-export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void }) {
+export function ProjectBrowserPage({ onBackToDesk, entryLoaderVisible = false }: { onBackToDesk: () => void; entryLoaderVisible?: boolean }) {
+  const [showLoader, setShowLoader] = useState(!entryLoaderVisible);
   const [activeIndex, setActiveIndex] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [stackOrder, setStackOrder] = useState(() => projects.map((project) => project.id));
   const [slidesRevealToken, setSlidesRevealToken] = useState(0);
+  const [screenBounds, setScreenBounds] = useState<MonitorScreenBounds | null>(null);
+  const [decorFrame, setDecorFrame] = useState<{ screen: MonitorScreenBounds; pageWidth: number; pageHeight: number } | null>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  const monitorRef = useRef<HTMLDivElement>(null);
   const windowRefs = useRef<Record<string, HTMLElement | null>>({});
   const swapTimeline = useRef<gsap.core.Timeline | null>(null);
   const swapInProgress = useRef(false);
@@ -59,6 +36,33 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
   const wheelResetTimer = useRef<number | null>(null);
 
   const active = projects[activeIndex];
+  const handleScreenBounds = useCallback((next: MonitorScreenBounds) => {
+    setScreenBounds((current) => current
+      && Math.abs(current.left - next.left) < 0.5
+      && Math.abs(current.top - next.top) < 0.5
+      && Math.abs(current.width - next.width) < 0.5
+      && Math.abs(current.height - next.height) < 0.5
+      ? current : next);
+    const page = pageRef.current;
+    const monitor = monitorRef.current;
+    if (!page || !monitor) return;
+    const pageRect = page.getBoundingClientRect();
+    const monitorRect = monitor.getBoundingClientRect();
+    const pageScreen = {
+      left: next.left + monitorRect.left - pageRect.left,
+      top: next.top + monitorRect.top - pageRect.top,
+      width: next.width,
+      height: next.height,
+    };
+    setDecorFrame((current) => current
+      && current.pageWidth === page.clientWidth
+      && current.pageHeight === page.clientHeight
+      && Math.abs(current.screen.left - pageScreen.left) < 0.5
+      && Math.abs(current.screen.top - pageScreen.top) < 0.5
+      && Math.abs(current.screen.width - pageScreen.width) < 0.5
+      && Math.abs(current.screen.height - pageScreen.height) < 0.5
+      ? current : { screen: pageScreen, pageWidth: page.clientWidth, pageHeight: page.clientHeight });
+  }, []);
 
   useEffect(() => () => {
     swapTimeline.current?.kill();
@@ -247,13 +251,13 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
   };
 
   return (
+    <>
     <main
+      ref={pageRef}
       className="browser-page page-shell"
       style={{ '--tint-mid': active.backgroundMid, '--tint-end': active.backgroundEnd } as CSSProperties}
     >
-      <MonitorEntryTransition />
       <div className="browser-tint" aria-hidden="true" />
-      <ProjectDecor themeId={active.theme} items={active.decor} />
 
       <div
         className="project-progress"
@@ -288,32 +292,56 @@ export function ProjectBrowserPage({ onBackToDesk }: { onBackToDesk: () => void 
 
         </section>
 
-        <section
-          className="window-stage"
-          aria-label="겹쳐진 프로젝트 창"
-          onWheel={handleProjectWheel}
-        >
-          {projects.map((project, projectIndex) => {
-            const stackPosition = stackOrder.indexOf(project.id);
-            const depth = FRONT_WINDOW_DEPTH - stackPosition;
+        <div ref={monitorRef} className="project-monitor" onWheel={handleProjectWheel}>
+          <ProjectMonitorScene
+            className="project-monitor__scene"
+            backgroundMid={active.backgroundMid}
+            backgroundEnd={active.backgroundEnd}
+            onScreenBounds={handleScreenBounds}
+          />
+          <section
+            className="window-stage"
+            aria-label="모니터 화면 안에 겹쳐진 프로젝트 창"
+            style={screenBounds ? {
+              left: screenBounds.left,
+              top: screenBounds.top,
+              width: screenBounds.width,
+              height: screenBounds.height,
+            } : { visibility: 'hidden' }}
+          >
+            {projects.map((project, projectIndex) => {
+              const stackPosition = stackOrder.indexOf(project.id);
+              const depth = FRONT_WINDOW_DEPTH - stackPosition;
 
-            return (
-              <ProjectWindow
-                key={project.id}
-                project={project}
-                depth={depth}
-                active={project.id === active.id}
-                onSelect={() => chooseProject(projectIndex)}
-                windowRef={(node) => {
-                  windowRefs.current[project.id] = node;
-                }}
-              />
-            );
-          })}
-        </section>
+              return (
+                <ProjectWindow
+                  key={project.id}
+                  project={project}
+                  depth={depth}
+                  active={project.id === active.id}
+                  onSelect={() => chooseProject(projectIndex)}
+                  windowRef={(node) => {
+                    windowRefs.current[project.id] = node;
+                  }}
+                />
+              );
+            })}
+          </section>
+        </div>
       </div>
+      {!showLoader && !entryLoaderVisible && (
+        <ProjectDecor
+          themeId={active.theme}
+          items={active.decor}
+          screen={decorFrame?.screen ?? null}
+          pageWidth={decorFrame?.pageWidth ?? 0}
+          pageHeight={decorFrame?.pageHeight ?? 0}
+        />
+      )}
       <ProjectSlidesWindow project={active} revealToken={slidesRevealToken} />
     </main>
+    {showLoader && <IntroPage text={LOADING_TEXT.projects} ready onFinish={() => setShowLoader(false)} />}
+    </>
   );
 }
 
@@ -363,7 +391,7 @@ function ProjectWindow({
           <img src="/assets/arrow.svg" alt="" />
         </span>
       )}
-      <ProjectArtwork project={project} />
+      <ProjectArtwork project={project} isFront={active} />
     </article>
   );
 }

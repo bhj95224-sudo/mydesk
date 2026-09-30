@@ -192,9 +192,13 @@ type IntroMaterialState = {
   opacity: number;
   transparent: boolean;
   depthWrite: boolean;
+  // Keep writing depth while faded. For the keyboard: with depthWrite off, its ~80 keycaps
+  // and the case under them are ordered only by draw order, so the case painted over the
+  // keys drawn before it and the keyboard looked blank until the intro finished.
+  keepDepthWrite: boolean;
 };
 
-function collectIntroMaterials(model: THREE.Object3D): IntroMaterialState[] {
+function collectIntroMaterials(model: THREE.Object3D, { keepDepthWrite = false } = {}): IntroMaterialState[] {
   const materials = new Set<THREE.Material>();
   model.traverse((node) => {
     if (!(node instanceof THREE.Mesh)) return;
@@ -207,6 +211,7 @@ function collectIntroMaterials(model: THREE.Object3D): IntroMaterialState[] {
     opacity: material.opacity,
     transparent: material.transparent,
     depthWrite: material.depthWrite,
+    keepDepthWrite,
   }));
 }
 
@@ -216,7 +221,7 @@ function setIntroOpacity(states: IntroMaterialState[], progress: number) {
       state.material.transparent = true;
       state.material.needsUpdate = true;
     }
-    state.material.depthWrite = false;
+    state.material.depthWrite = state.keepDepthWrite;
     state.material.opacity = state.opacity * progress;
   }
 }
@@ -592,7 +597,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
           destination: '/keyboard',
           model: keyboard,
           baseY: keyboard.position.y,
-          introMaterials: collectIntroMaterials(keyboard),
+          introMaterials: collectIntroMaterials(keyboard, { keepDepthWrite: true }),
           introDelay: 100,
           introOffsetY: 0.12,
           introCurrentOffsetY: 0,
@@ -803,7 +808,21 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       // to happen right here, synchronously, while the page is still behind the intro
       // loading screen -- see IntroPage/onReady below -- so the first frame the user actually
       // sees is already complete.
+      // Shadows are switched on per frame in tick(); set them now too, or compile() builds
+      // the no-shadow program variants and the first real frames rebuild them all (the
+      // keyboard, with the most materials, showed up noticeably late from that).
+      renderer.shadowMap.enabled = enableShadowsRef.current;
       renderer.compile(scene, camera);
+      // compile() only builds shaders; textures still upload on first draw. Push the
+      // keyboard's label atlas (and its other maps) to the GPU now as well.
+      keyboard.traverse((node) => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        materials.forEach((material) => {
+          const map = (material as THREE.MeshStandardMaterial).map;
+          if (map) renderer.initTexture(map);
+        });
+      });
 
       let frameId = 0;
       let readyNotified = false;

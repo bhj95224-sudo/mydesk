@@ -5,9 +5,8 @@ import type { TabletPlaceholderItem } from '../data/tabletPlaceholders';
 interface TabletPlaceholderProps {
   item: TabletPlaceholderItem;
   children?: ReactNode;
+  // Click (press + release without dragging past CLICK_MOVE_THRESHOLD) or Enter/Space.
   onActivate?: () => void;
-  onHoverStart?: () => void;
-  onHoverEnd?: () => void;
 }
 
 type TabletPlaceholderStyle = CSSProperties & {
@@ -21,7 +20,7 @@ type TabletPlaceholderStyle = CSSProperties & {
 
 const CLICK_MOVE_THRESHOLD = 8;
 
-export function TabletPlaceholder({ item, children, onActivate, onHoverStart, onHoverEnd }: TabletPlaceholderProps) {
+export function TabletPlaceholder({ item, children, onActivate }: TabletPlaceholderProps) {
   const pointerStartRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const style: TabletPlaceholderStyle = {
     '--placeholder-width': `${item.width}px`,
@@ -32,8 +31,10 @@ export function TabletPlaceholder({ item, children, onActivate, onHoverStart, on
     '--placeholder-ratio': `${item.width} / ${item.height}`,
   };
 
+  // Mouse included: the cards are also dragged by the physics (matter-js) with the same
+  // press, so only a release that barely moved counts as a click.
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (!onActivate || event.pointerType === 'mouse' || event.button !== 0) return;
+    if (!onActivate || event.button !== 0) return;
     pointerStartRef.current = {
       id: event.pointerId,
       x: event.clientX,
@@ -55,7 +56,7 @@ export function TabletPlaceholder({ item, children, onActivate, onHoverStart, on
   const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
     const pointerStart = pointerStartRef.current;
     pointerStartRef.current = null;
-    if (event.pointerType === 'mouse' || !pointerStart || pointerStart.id !== event.pointerId || pointerStart.moved) return;
+    if (!pointerStart || pointerStart.id !== event.pointerId || pointerStart.moved) return;
     onActivate?.();
   };
 
@@ -77,12 +78,6 @@ export function TabletPlaceholder({ item, children, onActivate, onHoverStart, on
       role={onActivate ? 'button' : undefined}
       tabIndex={onActivate ? 0 : undefined}
       aria-haspopup={onActivate ? 'dialog' : undefined}
-      onPointerEnter={(event) => {
-        if (event.pointerType === 'mouse') onHoverStart?.();
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType === 'mouse') onHoverEnd?.();
-      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
