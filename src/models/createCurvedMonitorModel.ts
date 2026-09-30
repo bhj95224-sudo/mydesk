@@ -75,6 +75,32 @@ function alignedCylinder(from: THREE.Vector3, to: THREE.Vector3, radiusStart: nu
   return mesh;
 }
 
+const SCREEN_W = W - 2 * TOP_SIDE_BEZEL;
+const SCREEN_H = H - TOP_SIDE_BEZEL - BOTTOM_BEZEL;
+/** Width / height of the visible screen area. */
+export const CURVED_MONITOR_SCREEN_ASPECT = SCREEN_W / SCREEN_H;
+
+/**
+ * A surface that follows the screen glass's front curve, just in front of it, in the
+ * monitor model's local space -- for showing an image on the screen. Not part of the cached
+ * model: the caller adds it to the monitor and removes/disposes it.
+ */
+export function createCurvedMonitorScreenSurface(material: THREE.Material): THREE.Mesh {
+  const geometry = new THREE.PlaneGeometry(SCREEN_W, SCREEN_H, 32, 1);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    // Same circle as curvedPanelGeometry's front face: z = R (1 - cos theta), x = R sin theta.
+    position.setZ(i, CURVE_R - Math.sqrt(CURVE_R * CURVE_R - x * x));
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  const surface = new THREE.Mesh(geometry, material);
+  surface.name = 'screenImage';
+  surface.position.set(0, SCREEN_BOTTOM_Y + BOTTOM_BEZEL + SCREEN_H / 2, 0.0015 + 0.0008);
+  return surface;
+}
+
 // Cached module-wide so the desk-overlay thumbnail reuses the same built group instead of
 // rebuilding it on every mount. Callers must not dispose this group's geometry/materials
 // since the same instance is shared.

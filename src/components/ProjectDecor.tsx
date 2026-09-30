@@ -66,7 +66,7 @@ export function ProjectDecor({ themeId, items, screen, pageWidth, pageHeight }: 
                   : { opacity: 1, scale: [0.84, 1.015, 1], y: [8, -1, 0] }
               }
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.66, ease: [0.22, 0.8, 0.3, 1] }}
+              transition={{ duration: 0.85, ease: [0.22, 0.8, 0.3, 1] }}
             >
               <motion.div
                 className="browser-decor__drift"

@@ -19,6 +19,8 @@ export type Project = {
   displayName: string;
   category: string;
   description: string;
+  /** Optional second paragraph under the description, in muted gray. */
+  note?: string;
   accent: string;
   idleAccent: string;
   borderColor: string;
@@ -36,6 +38,8 @@ export type Project = {
   contentVideo?: string;
   contentBg?: string;
   externalUrl?: string;
+  /** Color blocks of the "프로젝트 보러가기" / "기획서 보러가기" tapes (top, bottom). */
+  tapeColors?: [string, string];
   /** Floating decorative objects shown only while this project is active, at their Figma-specified position. */
   decor: DecorItem[];
 };
@@ -60,6 +64,7 @@ const projectCatalog: Project[] = [
     contentImage: '/assets/projects/sulwhasoo-project-preview.jpeg',
     contentVideo: '/assets/projects/sulwhasoo-preview.mp4',
     externalUrl: 'https://harperppppppp.github.io/sulwhasoo/',
+    tapeColors: ['#FF932D', '#E8B171'],
     decor: [
       { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '67.78%', rotate: -129.31, flipY: true, overflowOffsetX: 270, overflowOffsetY: 310 },
       { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '50.37%', rotate: -50.69 },
@@ -85,6 +90,7 @@ const projectCatalog: Project[] = [
     contentImage: '/assets/projects/jaduya-content.png',
     contentVideo: '/assets/projects/jaduya-preview.mp4',
     externalUrl: 'https://jaduya.vercel.app/login',
+    tapeColors: ['#DF4F4C', '#B4C62D'],
     decor: [],
   },
   {
@@ -93,6 +99,7 @@ const projectCatalog: Project[] = [
     displayName: '비플레인',
     category: 'WEB REDESIGN',
     description: '개인적으로도 매우 잘 쓰는 제품의 브랜드 소개 페이지가 없었기\n때문에 브랜드의 컬러와 저만의 스타일을 접목시켜 브랜드 소개\n페이지를 제작하였습니다.',
+    note: '팀 프로젝트와 기존 작업 브랜드의 이미지가 겹치는 것이 많았기 때문에,\n제가 꾸준히 사용하던 브랜드를 골라 사이트 페이지를\n제작하게 되었습니다.',
     accent: '#62d91d',
     idleAccent: '#D7F4BC',
     borderColor: '#85a793',
@@ -103,6 +110,7 @@ const projectCatalog: Project[] = [
     progressTrack: '#B5D59A',
     progressSegment: '#DF2684',
     contentImage: '/assets/projects/beplain-content.png',
+    tapeColors: ['#FF9FC7', '#90FF00'],
     decor: [
       { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '11.09%', top: '25.00%', rotate: -49.91 },
       { src: '/assets/projects/beplain-orb.png', width: '7vh', height: '7vh', left: '27.81%', top: '57.87%' },

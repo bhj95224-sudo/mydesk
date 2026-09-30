@@ -3,14 +3,15 @@ import {
   DeskSetupScene,
   type DeskObjectDestination,
 } from '../components/DeskSetupScene';
-import { ContactNote } from '../components/ContactNote';
+import { ContactNote, resetContactNoteLayout } from '../components/ContactNote';
 import { BUBBLE_VISIBLE_MS, DeskBubbles, type DeskBubbleId } from '../components/DeskBubbles';
 import { DeskStickers } from '../components/DeskStickers';
-import { HobbyNote } from '../components/HobbyNote';
-import type { Position, StickyNoteHandle } from '../components/StickyNote';
+import type { Position } from '../components/StickyNote';
 
 const NOTE_SCREEN_MARGIN = 24;
-const NOTE_STACK_OFFSET = 100;
+// Module-level so an open contact note is still open after visiting another page and coming
+// back (DeskPage unmounts in between); a reload closes it.
+let contactNoteOpenAcrossVisits = false;
 
 // Picked in #/lab -- see DeskBrightnessLab.tsx.
 const DESK_SHADOW_COLOR = '#746363';
@@ -66,9 +67,12 @@ export function DeskPage({
 }: DeskPageProps) {
   const [destination, setDestination] = useState<DeskObjectDestination | null>(null);
   const destinationRef = useRef<DeskObjectDestination | null>(null);
-  const [contactNoteOpen, setContactNoteOpen] = useState(false);
-  const [hobbyNoteOpen, setHobbyNoteOpen] = useState(false);
-  const contactNoteRef = useRef<StickyNoteHandle>(null);
+  const [contactNoteOpen, setContactNoteOpenState] = useState(() => contactNoteOpenAcrossVisits);
+  const setContactNoteOpen = useCallback((open: boolean) => {
+    contactNoteOpenAcrossVisits = open;
+    if (!open) resetContactNoteLayout();
+    setContactNoteOpenState(open);
+  }, []);
   const readyNotifiedRef = useRef(false);
   const playDecorIntroRef = useRef(!introComplete);
   const [visibleBubbles, setVisibleBubbles] = useState<Partial<Record<DeskBubbleId, boolean>>>({});
@@ -106,28 +110,18 @@ export function DeskPage({
   };
 
   const handleDrawerActivate = useCallback(() => {
-    // Only opens -- once the note is up it's a real window (drag it, close it with its own
-    // x), so re-clicking the drawer shouldn't make it vanish.
     setContactNoteOpen(true);
-  }, []);
+  }, [setContactNoteOpen]);
+
+  // Clicking the drawer again while the note is up closes it (same as its x).
+  const handleDrawerClose = useCallback(() => {
+    setContactNoteOpen(false);
+  }, [setContactNoteOpen]);
 
   const getContactNoteInitialPosition = useCallback((element: HTMLElement): Position => ({
     x: window.innerWidth - element.offsetWidth - NOTE_SCREEN_MARGIN,
     y: window.innerHeight - element.offsetHeight - NOTE_SCREEN_MARGIN,
   }), []);
-
-  const getHobbyNoteInitialPosition = useCallback((element: HTMLElement): Position => {
-    const contactRect = contactNoteRef.current?.getRect();
-    if (!contactRect) {
-      return {
-        x: window.innerWidth - element.offsetWidth - NOTE_SCREEN_MARGIN,
-        y: window.innerHeight - element.offsetHeight - NOTE_SCREEN_MARGIN,
-      };
-    }
-    return { x: contactRect.left - NOTE_STACK_OFFSET, y: contactRect.top - NOTE_STACK_OFFSET };
-  }, []);
-
-  const handleSpawnHobbyNote = useCallback(() => setHobbyNoteOpen(true), []);
 
   return (
     <main
@@ -150,6 +144,7 @@ export function DeskPage({
             onIntroComplete={onIntroComplete}
             onObjectActivate={beginNavigation}
             onDrawerActivate={handleDrawerActivate}
+            onDrawerClose={handleDrawerClose}
             drawerFileOut={contactNoteOpen}
             enableShadows
             showShadowFloor
@@ -220,22 +215,15 @@ export function DeskPage({
           </div>
         ))}
       </div>
+      <p className="desk-signature">BAKYOJEONG PORTFOLIO</p>
       <DeskBubbles visible={visibleBubbles} />
       <DeskStickers
         entranceClass={playDecorIntroRef.current ? introComplete ? 'is-revealed' : 'is-waiting' : 'is-ready'}
       />
       {contactNoteOpen && (
         <ContactNote
-          ref={contactNoteRef}
           getInitialPosition={getContactNoteInitialPosition}
           onClose={() => setContactNoteOpen(false)}
-          onPlus={hobbyNoteOpen ? undefined : handleSpawnHobbyNote}
-        />
-      )}
-      {hobbyNoteOpen && (
-        <HobbyNote
-          getInitialPosition={getHobbyNoteInitialPosition}
-          onClose={() => setHobbyNoteOpen(false)}
         />
       )}
     </main>

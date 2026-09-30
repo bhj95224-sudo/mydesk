@@ -76,6 +76,20 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 .browser-header { position: relative; z-index: 3; display: flex; justify-content: flex-end; align-items: center; height: 40px; font-size: 12px; letter-spacing: .14em; font-weight: 800; }
 .desk-scene { position: absolute; z-index: 1; inset: 30px; display: flex; align-items: center; justify-content: center; }
+/* Bottom-left site signature on the desk page. */
+.desk-signature {
+  position: absolute;
+  z-index: 2;
+  left: 30px;
+  bottom: 24px;
+  margin: 0;
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1;
+  opacity: .5;
+  pointer-events: none;
+  user-select: none;
+}
 .desk-image-wrap {
   position: relative;
   width: min(120vh, 100%);
@@ -137,8 +151,25 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   cursor: default;
 }
 .sticky-note__icon-btn:disabled { opacity: .45; cursor: default; }
-.sticky-note__plus:not(:disabled) { cursor: pointer; }
-.sticky-note__plus:not(:disabled):hover { background: rgba(55, 51, 26, .1); color: #37331a; }
+/* Fold toggle: arrow points up while open (fold it up), down when folded (open it). */
+.sticky-note__fold { cursor: pointer; }
+.sticky-note__fold:hover { background: rgba(55, 51, 26, .1); color: #37331a; }
+.sticky-note__fold svg { transform: rotate(180deg); transition: transform .2s ease; }
+.sticky-note.is-collapsed .sticky-note__fold svg { transform: rotate(0deg); }
+/* Folding: the row eases between its full height (1fr) and 0 while the content fades, so
+   the note slides shut/open instead of snapping. */
+.sticky-note__fold-area {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows .38s cubic-bezier(.22, 1, .36, 1), opacity .28s ease;
+}
+.sticky-note.is-collapsed .sticky-note__fold-area {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows .38s cubic-bezier(.22, 1, .36, 1), opacity .2s ease;
+}
+.sticky-note__fold-inner { min-height: 0; overflow: hidden; }
 .sticky-note__close {
   cursor: pointer;
   font-size: 19px;
@@ -157,6 +188,58 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   text-decoration: none;
 }
 .sticky-note__link:hover { text-decoration: underline; }
+
+/* Contact note: the inquiry form above the existing links. Taller than the other notes, so its
+   body scrolls (wheel/touch) instead of running off short screens -- with the scrollbar hidden. */
+.sticky-note--contact .sticky-note__body {
+  /* Shows down to the middle of the 오픈카카오톡 QR (its top sits ~576px into the body) before
+     scrolling; shorter screens still fit. */
+  max-height: min(631px, calc(100vh - 150px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.sticky-note--contact .sticky-note__body::-webkit-scrollbar { display: none; }
+.contact-form { display: flex; flex-direction: column; }
+.contact-form__title { margin: 0 0 18px; font-size: 21px; font-weight: 700; }
+.contact-form__field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+.contact-form__label { font-size: 13px; font-weight: 700; }
+.contact-form__input {
+  width: 100%;
+  height: 41px;
+  padding: 0 11px;
+  border: 1px solid rgba(55, 51, 26, .45);
+  border-radius: 8px;
+  background: #fbfaf5;
+  color: #242323;
+  font: inherit;
+  font-size: 14px;
+}
+.contact-form__input:focus { outline: 2px solid #9c9c9c; outline-offset: 1px; border-color: transparent; }
+.contact-form__textarea { height: 123px; padding: 10px 11px; line-height: 1.5; resize: vertical; }
+.contact-form__textarea::placeholder { color: rgba(55, 51, 26, .55); }
+.contact-form__consent { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; font-size: 13px; line-height: 1.5; cursor: pointer; }
+.contact-form__consent input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: #000000; }
+.contact-form__notice { margin: 16px 0 0; font-size: 12px; color: rgba(55, 51, 26, .75); }
+.contact-form__submit {
+  height: 46px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 9999px;
+  background: #000000;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.contact-form__submit:disabled { opacity: .7; cursor: default; }
+.contact-form__submit:focus-visible { outline: 3px solid #382a83; outline-offset: 2px; }
+.contact-form__status { margin: 12px 0 0; font-size: 13px; line-height: 1.5; word-break: keep-all; }
+.contact-form__mail { color: inherit; font-weight: 600; word-break: break-all; }
+.contact-links { margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(55, 51, 26, .2); }
+.contact-links__lead { margin: 0 0 14px; font-size: 13px; color: rgba(55, 51, 26, .75); }
+.contact-links__qr { display: block; width: 110px; height: 110px; margin: 6px 0 8px; border-radius: 8px; }
 .sticky-note__toolbar {
   display: flex;
   align-items: center;
@@ -474,7 +557,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   left: 30px;
   top: calc(50% + 48px);
   transform: translateY(-50%);
-  z-index: 3;
+  /* In front of the decor, haze and project links; only the title/description is above. */
+  z-index: 12;
   width: 6px;
   height: 320px;
   border-radius: 9999px;
@@ -980,77 +1064,109 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .project-monitor { position: absolute; top: 7%; bottom: -15%; left: 41%; right: 5%; min-width: 0; }
 .project-monitor__scene { position: absolute; inset: 0; pointer-events: none; }
 .project-monitor__scene canvas { display: block; width: 100%; height: 100%; }
-.project-intro { position: relative; z-index: 5; padding: 0; }
+/* Front-to-back on the left side: title/description (13), progress bar (12), project links
+   (11), white haze (10), floating decor (9). */
+.project-intro { position: relative; z-index: 13; padding: 0; }
+/* Figma 271:392 (추가3): 1671px of the 3840px frame, full height; 56% white from the left
+   edge to 29.8% short of its right edge, then fading out to clear at the right edge. */
+.project-haze {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 43.52%;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .56) 29.808%);
+  pointer-events: none;
+}
 .project-intro .eyebrow { display: none; }
 .project-count { border-left: 1px solid #aaa; padding-left: 20px; color: #777; }
-.project-text-anim { position: absolute; top: -30px; left: 0; display: flex; flex-direction: column; gap: 30px; }
+/* Title + description sit lower-left, in the empty area under the header (the intro
+   column itself starts ~98px down the page). left leaves ~5.25vw between the progress bar's
+   right edge (30px + 6px) and the text. max-content keeps the offset from squeezing
+   the description into extra line breaks. */
+.project-text-anim { position: absolute; top: calc(19vh - 98px); left: calc(6px + 5.25vw); width: max-content; display: flex; flex-direction: column; gap: 30px; }
 .project-intro h1 { margin: 0; font-size: clamp(54px, 3.90625vw, 75px); line-height: 1; letter-spacing: -.02em; font-weight: 700; }
 .project-category { display: none; }
+/* Second paragraph (e.g. beplain); sits 30px under the description via the column's gap.
+   90% of the description's size (18px where the description is 20px). */
+.project-description.project-description--note { color: #cacaca; font-size: clamp(14.4px, .9375vw, 18px); }
 .project-description { margin: 0; max-width: 620px; min-height: 0; font-size: clamp(16px, 1.0417vw, 20px); line-height: 1.5; white-space: pre-line; word-break: keep-all; }
 .detail-link { display: none; }
 .detail-link:hover { color: #d5247e; border-color: #d5247e; }
 .project-details { position: absolute; top: 345px; width: min(100%, 490px); padding: 18px; background: #fff; border: 1px solid #ddd; border-radius: 14px; box-shadow: 0 20px 45px rgba(0,0,0,.12); z-index: 10; }
 .project-details p { line-height: 1.5; }
 .project-details small { display: block; color: #666; line-height: 1.5; }
-.window-stage { position: absolute; z-index: 3; min-width: 0; overflow: hidden; border-radius: 1.4%; }
-.project-window { position: absolute; width: 79%; height: 70%; border: 1px solid var(--project-border); border-radius: clamp(18px, 2vw, 36px); overflow: hidden; background: #fff; box-shadow: 0 6px 0 rgba(0,0,0,.015); backface-visibility: hidden; will-change: left, top, transform; transition: left .8s cubic-bezier(.22,1,.36,1), top .8s cubic-bezier(.22,1,.36,1); }
-.project-window--depth-0 { left: 18%; top: 1%; z-index: 1; }
-.project-window--depth-1 { left: 14%; top: 7%; z-index: 2; }
-.project-window--depth-2 { left: 10%; top: 15%; z-index: 3; }
-.project-window--depth-3 { left: 6%; top: 23%; z-index: 4; }
-.project-window__bar { display: flex; align-items: center; gap: 12px; width: 100%; height: 50px; padding: 0 37px; border: 0; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+/* "프로젝트 보러가기" / "기획서 보러가기" next to the monitor; right/top set inline from the
+   screen bounds. Same soft drop shadow as the desk page's tapes (--float-shadow-*). */
+/* Figma 271:376 / 272:444 (3840px-wide frame, like the desk page): 431x91 at 50% white,
+   100px color block on the right, 30px text 43px in, 31px apart. --mpx is one Figma px. */
+.project-links {
+  --mpx: calc(100vw / 3840);
+  position: absolute;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: calc(31 * var(--mpx));
+}
+.project-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: calc(431 * var(--mpx));
+  height: calc(91 * var(--mpx));
+  padding-left: calc(43 * var(--mpx));
+  background: rgba(255, 255, 255, .5);
+  color: #000000;
+  text-decoration: none;
+  filter: drop-shadow(0 var(--float-shadow-offset) var(--float-shadow-blur) var(--float-shadow-color));
+  transition: transform .25s ease;
+}
+a.project-link:hover { transform: translateY(-3px); }
+a.project-link:focus-visible { outline: 3px solid #382a83; outline-offset: 3px; }
+.project-link.is-disabled { cursor: default; }
+.project-link__label {
+  font-family: "Cafe24 Ssurround Air", "Pretendard", sans-serif;
+  font-weight: 300;
+  font-size: calc(30 * var(--mpx));
+  line-height: normal;
+  white-space: nowrap;
+}
+.project-link__swatch { position: absolute; top: 0; right: 0; bottom: 0; width: calc(100 * var(--mpx)); background: var(--tape-color-top, #ff932d); transition: background-color .5s ease; }
+.project-link--proposal .project-link__swatch { background: var(--tape-color-bottom, #e8b171); }
+/* The front window fills the monitor screen exactly; the ones behind it are the same size,
+   stepped up and to the right so they stick out from behind the monitor. The stage has no
+   z-index/clipping of its own, so the monitor canvas (z-index 4) sits between them: back
+   windows (1-3) are covered by the monitor, the front one (5) is drawn on its screen. */
+.window-stage { position: absolute; min-width: 0; }
+.project-monitor__scene { z-index: 4; }
+.project-window { position: absolute; width: 100%; height: 100%; border: 1px solid var(--project-border); border-radius: 0; overflow: hidden; background: #fff; box-shadow: 0 6px 0 rgba(0,0,0,.015); backface-visibility: hidden; will-change: left, top, transform; transition: left .8s cubic-bezier(.22,1,.36,1), top .8s cubic-bezier(.22,1,.36,1); }
+.project-window.is-front { border: 0; }
+.project-window--depth-0 { left: 17.4%; top: -26.7%; z-index: 1; }
+.project-window--depth-1 { left: 11.6%; top: -17.8%; z-index: 2; }
+.project-window--depth-2 { left: 5.8%; top: -8.9%; z-index: 3; }
+.project-window--depth-3 { left: 0; top: 0; z-index: 5; }
+.project-window__bar { display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 37px; border: 0; background: #fff; color: inherit; text-align: left; cursor: pointer; }
 .project-window__bar:focus-visible { outline: 3px solid #382a83; outline-offset: -4px; }
 .project-window__status { width: 13px; height: 13px; border-radius: 50%; background: var(--project-accent); }
 .project-window__title { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
 .project-window--sulwhasoo .project-window__title { font-size: 18px; }
-.project-window__action { position: absolute; top: 10px; right: 37px; z-index: 1; display: block; width: 30px; height: 30px; }
+.project-window__action { position: absolute; top: 5px; right: 37px; z-index: 1; display: block; width: 30px; height: 30px; }
 .project-window__action img { display: block; width: 100%; height: 100%; }
 a.project-window__action { transition: transform .2s ease; }
 a.project-window__action:hover { transform: translateX(3px); }
 a.project-window__action:focus-visible { outline: 3px solid #382a83; outline-offset: 2px; border-radius: 4px; }
-.project-window > .project-artwork { height: calc(100% - 50px); }
+/* Fills everything under the 40px bar. */
+.project-window > .project-artwork { height: calc(100% - 40px); }
 
-/* Figma slide preview window; its title bar can be dragged around the monitor page. */
-.project-slides-window {
-  position: absolute;
-  z-index: 7;
-  width: min(363px, calc(100% - 36px));
-  height: 250px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--slides-border);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(35, 32, 30, .12);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-.project-slides-window.is-dragging { cursor: grabbing; }
+/* Pop-in for the desk page's sticky notes. */
 @keyframes slidesWindowOpen {
   from { opacity: 0; transform: translateY(12px) scale(.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.project-slides-window__bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 60px;
-  padding: 0 22px;
-  color: #282726;
-  background: #fff;
-  cursor: inherit;
-}
-.project-slides-window__bar:focus-visible { outline: 3px solid #382a83; outline-offset: -4px; }
-.project-slides-window__title { font-size: 18px; font-weight: 700; line-height: 1; white-space: nowrap; }
-.project-slides-window__arrow { display: block; flex: none; width: 30px; height: 30px; margin-left: auto; }
-.project-slides-window__placeholder { flex: 1; min-height: 0; background: var(--slides-background); }
 
 /* Project artwork: Figma reference screenshot per project (hourtention has no visual yet). */
 .project-artwork { position: relative; overflow: hidden; display: grid; place-items: center; background: #f2f2f2; }
-.project-artwork--linked { color: inherit; text-decoration: none; cursor: pointer; }
-.project-artwork--linked:focus-visible { outline: 4px solid #382a83; outline-offset: -6px; }
 .project-artwork__image { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 @media (max-width: 1200px) {
@@ -1099,14 +1215,13 @@ a.project-window__action:focus-visible { outline: 3px solid #382a83; outline-off
   .tablet-physics-stage.is-physics-ready { display: block; padding: 0; }
   .browser-layout { display: flex; flex-direction: column; height: auto; gap: 24px; }
   .project-monitor { position: relative; inset: auto; flex: none; width: 100%; height: min(80vw, 400px); }
-  .browser-decor { display: none; }
+  .browser-decor, .project-haze { display: none; }
   .project-intro { padding-top: 0; }
-  .project-text-anim { position: static; gap: 12px; }
+  .project-text-anim { position: static; width: auto; gap: 12px; }
   .project-intro h1 { position: static; font-size: 48px; margin: 0 0 18px; }
   .project-description { position: static; max-width: 100%; min-height: 0; font-size: 16px; }
   .project-details { top: 195px; }
-  .window-stage { position: absolute; border-radius: 2%; }
-  .project-window { border-radius: 14px; }
+  .window-stage { position: absolute; }
   .project-window__bar { height: 35px; padding: 0 12px; gap: 8px; }
   .project-window__action { top: 5px; right: 12px; width: 25px; height: 25px; }
   .project-window__title { font-size: 12px; }
