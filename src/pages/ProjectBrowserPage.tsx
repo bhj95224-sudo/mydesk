@@ -363,11 +363,23 @@ export function ProjectBrowserPage({ onBackToDesk, entryLoaderVisible = false }:
               <span className="project-link__swatch" aria-hidden="true" />
             </span>
           )}
-          {/* No proposal link yet -- button only for now. */}
-          <span className="project-link project-link--proposal is-disabled" aria-disabled="true">
-            <span className="project-link__label">기획서 보러가기</span>
-            <span className="project-link__swatch" aria-hidden="true" />
-          </span>
+          {/* Projects without a proposal yet keep the tape's slot but hide it. */}
+          {active.proposalHref ? (
+            <a className="project-link project-link--proposal" href={active.proposalHref}>
+              <span className="project-link__label">기획서 보러가기</span>
+              <span className="project-link__swatch" aria-hidden="true" />
+            </a>
+          ) : (
+            <span
+              className="project-link project-link--proposal is-disabled"
+              aria-disabled="true"
+              aria-hidden={active.hideProposalTape || undefined}
+              style={active.hideProposalTape ? { visibility: 'hidden' } : undefined}
+            >
+              <span className="project-link__label">기획서 보러가기</span>
+              <span className="project-link__swatch" aria-hidden="true" />
+            </span>
+          )}
         </nav>
       )}
     </main>

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { KEYBOARD_SKILLS, type KeyboardSkillKey } from '../data/keyboardSkills';
 
 export type ProceduralModelOptions = {
@@ -22,6 +24,9 @@ export type ProceduralModelOptions = {
   // Extra height (model units) added to the PRESSABLE_KEYS' keycaps so they stand taller
   // than the rest -- the cap is stretched from the plate up, not floated. Defaults to 0.
   pressableKeyRaise?: number;
+  // When true, every keycap can be pressed (motion only), not just the skill keys. The other
+  // keys keep their normal height and colors. Defaults to false (the desk page's keyboard).
+  pressAllKeys?: boolean;
 };
 
 const activeSkillKeys = (Object.keys(KEYBOARD_SKILLS) as KeyboardSkillKey[])
@@ -34,9 +39,14 @@ const PRESSABLE_KEY_COLORS: Record<string, string> = Object.fromEntries(
 
 // ---- grid ------------------------------------------------------------
 const PITCH = 5.0;
-const GAP = 0.5;
+// Keycaps nearly touch left to right (like a real board and the reference render); the rows
+// stay a little apart front to back.
+const GAP_X = 0.2;
+const GAP_Z = 0.5;
 const KEY_H = 2.5;
-export const PRESS_DEPTH = KEY_H * 0.4; // 40% of keycap height
+export const PRESS_DEPTH = KEY_H * 0.7; // 70% of keycap height (the raised skill keys)
+// The plain keys are not raised, so the same travel looks much deeper on them: press less.
+export const PLAIN_PRESS_DEPTH = KEY_H * 0.48;
 
 const ROWS = 6; // 0 = back (function row) .. 5 = front (spacebar row)
 const MAIN_START = 0;
@@ -198,27 +208,61 @@ function buildKeyList(includeNavCluster: boolean, highlightPressableKeys: boolea
 // Same wedge-profile solid as the standalone keyboard model: a single watertight
 // ExtrudeGeometry, closed front/back/left/right/bottom, both ends geometrically
 // symmetric by construction (one profile, extruded straight along width).
+// Closed polygon outline with its corners rounded by quadratic curves (radius clamped to
+// half of the shorter neighbouring edge).
+function roundedPolygonShape(points: [number, number][], radius: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  const count = points.length;
+  for (let i = 0; i < count; i += 1) {
+    const prev = points[(i + count - 1) % count];
+    const current = points[i];
+    const next = points[(i + 1) % count];
+    const toPrev = new THREE.Vector2(prev[0] - current[0], prev[1] - current[1]);
+    const toNext = new THREE.Vector2(next[0] - current[0], next[1] - current[1]);
+    const r = Math.min(radius, toPrev.length() / 2, toNext.length() / 2);
+    const start = current[0] === prev[0] && current[1] === prev[1] ? toPrev : toPrev.clone().setLength(r);
+    const end = toNext.clone().setLength(r);
+    if (i === 0) shape.moveTo(current[0] + start.x, current[1] + start.y);
+    else shape.lineTo(current[0] + start.x, current[1] + start.y);
+    shape.quadraticCurveTo(current[0], current[1], current[0] + end.x, current[1] + end.y);
+  }
+  shape.closePath();
+  return shape;
+}
+
+const CASE_EDGE_RADIUS = 0.45;
+const CASE_END_BEVEL = 0.3;
+
 function buildCaseGeometry(caseW: number): THREE.BufferGeometry {
   const backZ = -CASE_D / 2;
   const frontZ = CASE_D / 2;
   const shoulderZ = CASE_D / 2 - BEVEL_Z;
 
-  const shape = new THREE.Shape();
-  shape.moveTo(backZ, 0);
-  shape.lineTo(backZ, BACK_H);
-  shape.lineTo(shoulderZ, FRONT_H);
-  shape.lineTo(frontZ, FRONT_LIP_H);
-  shape.lineTo(frontZ, 0);
-  shape.closePath();
+  const shape = roundedPolygonShape([
+    [backZ, 0],
+    [backZ, BACK_H],
+    [shoulderZ, FRONT_H],
+    [frontZ, FRONT_LIP_H],
+    [frontZ, 0],
+  ], CASE_EDGE_RADIUS);
 
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: caseW, bevelEnabled: false, steps: 1 });
+  // The end bevel is carved out of the extrusion depth (negative offset keeps the outer size),
+  // so the case is still exactly caseW wide.
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: caseW - CASE_END_BEVEL * 2,
+    bevelEnabled: true,
+    bevelSize: CASE_END_BEVEL,
+    bevelOffset: -CASE_END_BEVEL,
+    bevelThickness: CASE_END_BEVEL,
+    bevelSegments: 2,
+    steps: 1,
+  });
   geometry.rotateY(-Math.PI / 2);
   geometry.computeBoundingBox();
   const bb = geometry.boundingBox!;
   const cx = (bb.min.x + bb.max.x) / 2;
   geometry.translate(-cx, 0, 0);
-  geometry.computeVertexNormals();
-  return geometry;
+  return toCreasedNormals(geometry, Math.PI / 4);
 }
 
 function drawLabelCell(
@@ -351,15 +395,42 @@ function buildLabelAtlas(keys: KeyDef[]): { texture: THREE.CanvasTexture; uvRect
   return { texture: tex, uvRects };
 }
 
-function remapTopFaceUV(geo: THREE.BoxGeometry, rect: UVRect): void {
+function remapTopFaceUV(geo: THREE.BufferGeometry, rect: UVRect): void {
   const uv = geo.attributes.uv as THREE.BufferAttribute;
-  // BoxGeometry's 6 faces are laid out as contiguous 4-vertex blocks in the order
-  // [+x, -x, +y(top), -y(bottom), +z, -z] (see the material-array comment in
-  // buildKeycapMesh) -- so the top face is vertices 8-11.
-  for (let i = 8; i < 12; i++) {
+  // The rounded box keeps BoxGeometry's 6 material groups in the order
+  // [+x, -x, +y(top), -y(bottom), +z, -z] (see buildKeycapMesh) -- the top face is group 2.
+  const top = geo.groups[2];
+  for (let i = top.start; i < top.start + top.count; i++) {
     uv.setXY(i, rect.u0 + uv.getX(i) * (rect.u1 - rect.u0), rect.v0 + uv.getY(i) * (rect.v1 - rect.v0));
   }
   uv.needsUpdate = true;
+}
+
+// A real keycap instead of a plain box: edges rounded, the top narrower than the base (the
+// taper that lets light catch each side differently) and a faint dish in the top face, with
+// smooth shading across the round-overs. Same 6 material groups as BoxGeometry.
+const KEYCAP_RADIUS = 0.7;
+const KEYCAP_TAPER = 0.3; // how far the top face is pulled in on each side
+const KEYCAP_DISH = 0.03;
+function createKeycapGeometry(w: number, d: number, segments = 3): THREE.BufferGeometry {
+  const geometry = new RoundedBoxGeometry(w, KEY_H, d, segments, KEYCAP_RADIUS);
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const halfH = KEY_H / 2;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const z = position.getZ(i);
+    const t = (y + halfH) / KEY_H; // 0 at the base, 1 at the top
+    let ny = y;
+    if (y > halfH - 0.02) {
+      const dx = x / (w / 2);
+      const dz = z / (d / 2);
+      ny -= KEYCAP_DISH * Math.max(0, 1 - (dx * dx + dz * dz));
+    }
+    position.setXYZ(i, x * (1 - (2 * KEYCAP_TAPER * t) / w), ny, z * (1 - (2 * KEYCAP_TAPER * t) / d));
+  }
+  position.needsUpdate = true;
+  return toCreasedNormals(geometry, Math.PI / 3);
 }
 
 function isLightColor(hex: string): boolean {
@@ -374,36 +445,36 @@ type AtlasBinding = { material: THREE.MeshStandardMaterial; uv: UVRect; sideMate
 
 function buildKeycapMesh(
   key: KeyDef,
-  geometryCache: Map<string, THREE.BoxGeometry>,
+  geometryCache: Map<string, THREE.BufferGeometry>,
   atlas?: AtlasBinding,
 ): THREE.Mesh {
-  const w = key.w * PITCH - GAP;
-  const d = key.d * PITCH - GAP;
+  const w = key.w * PITCH - GAP_X;
+  const d = key.d * PITCH - GAP_Z;
 
-  let geo: THREE.BoxGeometry;
+  let geo: THREE.BufferGeometry;
   let topMat: THREE.MeshStandardMaterial;
   if (atlas) {
     // Each atlas key needs its own top-face UV, so unlike the non-atlas path it can't share
     // a cached geometry across same-size keys.
-    geo = new THREE.BoxGeometry(w, KEY_H, d, 1, 1, 1);
+    geo = createKeycapGeometry(w, d, 2);
     remapTopFaceUV(geo, atlas.uv);
     topMat = atlas.material;
   } else {
     const geoKey = `${w.toFixed(3)}x${d.toFixed(3)}`;
     let cached = geometryCache.get(geoKey);
     if (!cached) {
-      cached = new THREE.BoxGeometry(w, KEY_H, d, 1, 1, 1);
+      cached = createKeycapGeometry(w, d);
       geometryCache.set(geoKey, cached);
     }
     geo = cached;
     const textColor = key.textColor ?? (isLightColor(key.color) ? LIGHT_TEXT : DARK_TEXT);
     const labelTex = makeLabelTexture(key.label, key.color, textColor, w / d);
-    topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.5, metalness: 0.05 });
+    topMat = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.6, metalness: 0.05 });
   }
 
   let sideMat = atlas?.sideMaterials.get(key.color);
   if (!sideMat) {
-    sideMat = new THREE.MeshStandardMaterial({ color: key.color, roughness: 0.55, metalness: 0.05 });
+    sideMat = new THREE.MeshStandardMaterial({ color: key.color, roughness: 0.62, metalness: 0.05 });
     atlas?.sideMaterials.set(key.color, sideMat);
   }
   // BoxGeometry face material order: [+x, -x, +y(top), -y(bottom), +z, -z]
@@ -413,8 +484,9 @@ function buildKeycapMesh(
   return mesh;
 }
 
+// `skill`: one of the colored, raised skill keys (the only ones that open a card).
 export type PressableKey = THREE.Group & {
-  userData: { key: string; pressable: true; restY: number };
+  userData: { key: string; pressable: true; skill: boolean; restY: number; pressDepth: number };
 };
 
 export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE.Group {
@@ -425,6 +497,7 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
   const highlightPressableKeys = options.highlightPressableKeys ?? false;
   const useLabelAtlas = options.atlasLabels ?? false;
   const pressableKeyRaise = options.pressableKeyRaise ?? 0;
+  const pressAllKeys = options.pressAllKeys ?? false;
   const caseW = getCaseW(includeNavCluster);
 
   const setShadow = (mesh: THREE.Mesh) => {
@@ -454,14 +527,14 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
   root.add(pressableGroup);
 
   const pressableKeys: PressableKey[] = [];
-  const geometryCache = new Map<string, THREE.BoxGeometry>();
+  const geometryCache = new Map<string, THREE.BufferGeometry>();
   const keyList = buildKeyList(includeNavCluster, highlightPressableKeys);
 
   let atlasMaterial: THREE.MeshStandardMaterial | null = null;
   let atlasUvRects: UVRect[] | null = null;
   if (useLabelAtlas) {
     const atlas = buildLabelAtlas(keyList);
-    atlasMaterial = new THREE.MeshStandardMaterial({ map: atlas.texture, roughness: 0.5, metalness: 0.05 });
+    atlasMaterial = new THREE.MeshStandardMaterial({ map: atlas.texture, roughness: 0.6, metalness: 0.05 });
     atlasUvRects = atlas.uvRects;
   }
 
@@ -477,16 +550,19 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
     );
     setShadow(mesh);
 
-    if (PRESSABLE_KEYS.has(key.label)) {
+    const isSkillKey = PRESSABLE_KEYS.has(key.label);
+    if (isSkillKey || pressAllKeys) {
       const group = new THREE.Group() as PressableKey;
-      group.name = `pressable-${key.label}`;
+      group.name = `pressable-${key.label || 'Space'}`;
       group.position.set(x, y, z);
-      // Geometry is shared through geometryCache, so stretch the mesh instead: bottom stays
-      // on the plate, top rises by pressableKeyRaise.
-      mesh.scale.y = (KEY_H + pressableKeyRaise) / KEY_H;
-      mesh.position.set(0, pressableKeyRaise / 2, 0);
+      if (isSkillKey) {
+        // Geometry is shared through geometryCache, so stretch the mesh instead: bottom stays
+        // on the plate, top rises by pressableKeyRaise.
+        mesh.scale.y = (KEY_H + pressableKeyRaise) / KEY_H;
+        mesh.position.set(0, pressableKeyRaise / 2, 0);
+      }
       group.add(mesh);
-      group.userData = { key: key.label, pressable: true, restY: y };
+      group.userData = { key: key.label, pressable: true, skill: isSkillKey, restY: y, pressDepth: isSkillKey ? PRESS_DEPTH : PLAIN_PRESS_DEPTH };
       pressableGroup.add(group);
       pressableKeys.push(group);
     } else {
@@ -502,16 +578,16 @@ export function createKeyboardModel(options: ProceduralModelOptions = {}): THREE
 
 export function createKeyboardLookDevLights(): THREE.Group {
   const group = new THREE.Group();
-  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  const key = new THREE.DirectionalLight(0xffffff, 1.8);
   key.position.set(0.8, 2.0, 1.4);
   group.add(key);
-  const fill = new THREE.DirectionalLight(0xffffff, 1.0);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.85);
   fill.position.set(-1.0, 1.4, 1.0);
   group.add(fill);
   const rim = new THREE.DirectionalLight(0xd8dcff, 0.4);
   rim.position.set(-0.3, 1.2, -1.6);
   group.add(rim);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.65);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
   group.add(ambient);
   return group;
 }

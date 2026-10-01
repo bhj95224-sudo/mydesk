@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { IntroPage, LOADING_TEXT } from './pages/IntroPage';
 import { ProjectBrowserPage } from './pages/ProjectBrowserPage';
 import { TabletPage } from './pages/TabletPage';
+import { SulwhasooProposalPage } from './pages/SulwhasooProposalPage';
+import { ClickSpark } from './components/ClickSpark';
 import { DeskBrightnessLab } from './pages/DeskBrightnessLab';
 const DeskPage = lazy(() =>
   import('./pages/DeskPage').then((module) => ({ default: module.DeskPage })),
@@ -10,19 +12,21 @@ const KeyboardPage = lazy(() =>
   import('./pages/KeyboardPage').then((module) => ({ default: module.KeyboardPage })),
 );
 
-type Route = 'desk' | 'keyboard' | 'projects' | 'tablet';
+type Route = 'desk' | 'keyboard' | 'projects' | 'tablet' | 'sulwhasooProposal';
 type ReturnPhase = 'idle' | 'preparing' | 'leaving';
 
 const RETURN_LOADING_TEXT: Record<Exclude<Route, 'desk'>, string> = {
   projects: LOADING_TEXT.backFromProjects,
   keyboard: LOADING_TEXT.backFromKeyboard,
   tablet: LOADING_TEXT.backFromTablet,
+  sulwhasooProposal: LOADING_TEXT.backFromProjects,
 };
 
 function getRoute(): Route {
   if (window.location.hash === '#/projects') return 'projects';
   if (window.location.hash === '#/keyboard') return 'keyboard';
   if (window.location.hash === '#/tablet') return 'tablet';
+  if (window.location.hash === '#/sulwhasoo-proposal') return 'sulwhasooProposal';
   return 'desk';
 }
 
@@ -30,7 +34,12 @@ export default function App() {
   // Standalone throwaway tool, kept out of the real route/intro state machine below --
   // see DeskBrightnessLab.tsx.
   if (window.location.hash === '#/lab') return <DeskBrightnessLab />;
-  return <AppRoutes />;
+  return (
+    <>
+      <AppRoutes />
+      <ClickSpark />
+    </>
+  );
 }
 
 function AppRoutes() {
@@ -104,7 +113,9 @@ function AppRoutes() {
       )
       : route === 'tablet'
         ? <TabletPage onBackToDesk={navigateToDesk} />
-        : null;
+        : route === 'sulwhasooProposal'
+          ? <SulwhasooProposalPage />
+          : null;
 
   const showDesk = route === 'desk' || returnPhase !== 'idle';
 

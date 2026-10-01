@@ -6,7 +6,7 @@ import {
   createCurvedAllInOneMonitorLookDevLights,
   createCurvedAllInOneMonitorModel,
 } from '../models/createCurvedMonitorModel';
-import { createCurvedBirchPlyDeskSetupModel, type ProceduralModelRuntime } from '../models/createDeskSetupModel';
+import { createCurvedBirchPlyDeskSetupModel, DESK_MODEL_OPTIONS, type ProceduralModelRuntime } from '../models/createDeskSetupModel';
 
 const DESK_MONITOR_SCALE = 0.48;
 const DESK_MONITOR_POSITION = new THREE.Vector3(0, 0.8697, 0.19);
@@ -69,7 +69,7 @@ export function ProjectMonitorScene({ className, backgroundMid, backgroundEnd, o
     model.updateMatrixWorld(true);
     // Reuse the glass riser and its supports from the desk model. Their original
     // positions are converted into the monitor's local scale and position.
-    const desk = createCurvedBirchPlyDeskSetupModel({});
+    const desk = createCurvedBirchPlyDeskSetupModel(DESK_MODEL_OPTIONS);
     const deskRuntime = desk.userData.sculptRuntime as ProceduralModelRuntime | undefined;
     const riser = new THREE.Group();
     for (const part of deskRuntime?.destructionGroups.glassRiser ?? []) {

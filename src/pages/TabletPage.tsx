@@ -92,7 +92,7 @@ export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
       {previewItem && (
         <div className="tablet-preview-backdrop">
           <section
-            className="tablet-preview-window"
+            className={previewItem.previewTone ? 'tablet-preview-window tablet-preview-window--' + previewItem.previewTone : 'tablet-preview-window'}
             role="dialog"
             aria-modal="false"
             aria-labelledby="tablet-preview-title"
@@ -120,8 +120,16 @@ export function TabletPage({ onBackToDesk }: { onBackToDesk: () => void }) {
                 </button>
               </div>
             </header>
-            <div className="tablet-preview-window__body">
-              <img src={previewItem.previewSrc ?? previewItem.src} alt={previewItem.previewAlt ?? previewItem.label} />
+            <div className={previewItem.previewImages ? 'tablet-preview-window__body tablet-preview-window__body--stacked' : 'tablet-preview-window__body'}>
+              {previewItem.previewImages ? (
+                <div className="tablet-preview-window__gallery">
+                  {previewItem.previewImages.map((image) => (
+                    <img key={image.src} src={image.src} alt={image.alt} />
+                  ))}
+                </div>
+              ) : (
+                <img src={previewItem.previewSrc ?? previewItem.src} alt={previewItem.previewAlt ?? previewItem.label} />
+              )}
             </div>
           </section>
         </div>

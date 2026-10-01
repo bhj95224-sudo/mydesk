@@ -77,7 +77,7 @@ function smootherStep(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 // Pressable keys stand this much taller than the rest (model units; a keycap is 2.5).
-const PRESSABLE_KEY_RAISE = 2.5;
+const PRESSABLE_KEY_RAISE = 1.0;
 // Idle "someone is typing" press on a random pressable key -- motion only, no card.
 const AUTO_PRESS_INTERVAL_MS = 8000;
 
@@ -104,7 +104,7 @@ export function KeyboardInteractiveScene({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     configureKeyboardRenderer(renderer);
-    renderer.domElement.setAttribute('aria-label', '클릭할 수 있는 3D 키보드. 색이 칠해진 키를 누르면 관련 활용 정보가 표시됩니다.');
+    renderer.domElement.setAttribute('aria-label', '클릭할 수 있는 3D 키보드. 색이 칠해진 키를 누르면 관련 활용 정보가 표시되고, 다른 키도 눌러볼 수 있습니다.');
     renderer.domElement.tabIndex = 0;
     renderer.domElement.style.touchAction = 'none';
     container.appendChild(renderer.domElement);
@@ -119,19 +119,19 @@ export function KeyboardInteractiveScene({
       includeNavCluster: false,
       highlightPressableKeys: true,
       pressableKeyRaise: PRESSABLE_KEY_RAISE,
+      pressAllKeys: true,
     });
     scene.add(model);
     scene.add(createKeyboardLookDevLights());
 
     const interactions = attachKeyboardInteractions(renderer, camera, model, onKeyPress, onBackgroundClick);
 
-    // Typing on the real keyboard presses the matching model key too (motion only -- the
-    // page's own keydown handler takes care of the card). Same filters as that handler.
+    // Typing on the real keyboard presses the matching model key too -- any key, modifiers
+    // included (motion only -- the page's own keydown handler takes care of the card).
     const handlePhysicalKeyDown = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.repeat) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (!event.code.startsWith('Key')) return;
-      interactions.pressKey(event.code.slice(3));
+      interactions.pressCode(event.code);
     };
     window.addEventListener('keydown', handlePhysicalKeyDown);
 

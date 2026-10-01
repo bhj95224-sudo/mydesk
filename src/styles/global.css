@@ -5,6 +5,10 @@
 @font-face { font-family: "Cafe24 Ssurround Air"; src: url("/fonts/Cafe24SsurroundAir.woff2") format("woff2"), url("/fonts/Cafe24SsurroundAir.ttf") format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
 @font-face { font-family: "WILDgag"; src: url("/fonts/WILDgag-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "Cormorant Garamond"; src: url("/fonts/CormorantGaramond-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "KMU80 Sungkok Serif"; src: url("/fonts/KMU80TTFSungkokSerif.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "KMU80 Sungkok Semi Serif"; src: url("/fonts/KMU80TTFSungkokSemiSerif.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "KMU80 Haeong Sans"; src: url("/fonts/KMU80TTFHaeongSans.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "KMU80 Haeong Semi Sans"; src: url("/fonts/KMU80TTFHaeongSemiSans.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Pretendard"; src: url("/fonts/Pretendard-Thin.woff2") format("woff2"); font-weight: 100; font-style: normal; font-display: swap; }
 @font-face { font-family: "Pretendard"; src: url("/fonts/Pretendard-ExtraLight.woff2") format("woff2"); font-weight: 200; font-style: normal; font-display: swap; }
 @font-face { font-family: "Pretendard"; src: url("/fonts/Pretendard-Light.woff2") format("woff2"); font-weight: 300; font-style: normal; font-display: swap; }
@@ -100,7 +104,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   transform: translate(-1.85%, 2.6%) translateY(13vh) scale(1.045);
 }
 .desk-page.is-intro-entering .desk-image-wrap {
-  animation: deskSceneIntroZoom .76s cubic-bezier(.22, 1, .36, 1) both;
+  animation: deskSceneIntroZoom .6s cubic-bezier(.22, 1, .36, 1) both;
 }
 .desk-image { display: block; width: 120vh; max-width: 100%; aspect-ratio: 4 / 3; }
 .desk-image canvas { display: block; width: 100%; height: 100%; }
@@ -272,7 +276,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .desk-decor__entrance { opacity: 1; }
 .desk-decor.is-waiting .desk-decor__entrance { opacity: 0; }
 .desk-decor.is-revealed .desk-decor__entrance {
-  animation: deskDecorPop .52s cubic-bezier(.2, .85, .3, 1) both;
+  animation: deskDecorPop .38s cubic-bezier(.2, .85, .3, 1) both;
 }
 .desk-decor__float {
   animation: deskDecorFloat var(--decor-float-duration) ease-in-out var(--decor-float-delay) infinite;
@@ -446,7 +450,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 /* Just appears (fade-in) on first entry -- no pop, no float. */
 .desk-sticker__entrance { opacity: 1; }
 .desk-stickers.is-waiting .desk-sticker__entrance { opacity: 0; }
-.desk-stickers.is-revealed .desk-sticker__entrance { animation: deskStickerFadeIn .6s ease-out both; }
+.desk-stickers.is-revealed .desk-sticker__entrance { animation: deskStickerFadeIn .4s ease-out both; }
 @keyframes deskStickerFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -804,10 +808,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   overflow: hidden;
   border: 1px solid #34332c;
   border-radius: 18px;
-  background: #fbeee6;
+  background: var(--tablet-preview-background, #fbeee6);
   box-shadow: 0 24px 70px rgba(38, 36, 27, .2);
   animation: tabletPreviewOpen .32s cubic-bezier(.22, 1, .36, 1) both;
 }
+.tablet-preview-window--olive { --tablet-preview-background: #afbf9a; }
+.tablet-preview-window--sky { --tablet-preview-background: #d9f0f9; }
 .tablet-preview-window__header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -815,7 +821,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   min-height: 56px;
   padding: 0 20px;
   border-bottom: 1px solid #34332c;
-  background: #fbeee6;
+  background: var(--tablet-preview-background, #fbeee6);
   /* Drag handle for moving the window. */
   cursor: grab;
   touch-action: none;
@@ -835,6 +841,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   font-size: 25px;
   font-weight: 400;
   letter-spacing: -.04em;
+}
+.tablet-preview-window--olive .tablet-preview-window__header h2,
+.tablet-preview-window--sky .tablet-preview-window__header h2 {
+  font-family: "KERIS KEDU", "Pretendard", sans-serif;
+  font-weight: 700;
 }
 .tablet-preview-window__actions {
   display: flex;
@@ -860,7 +871,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   min-height: 0;
   padding: 16px;
   overflow: hidden;
-  background: #fbeee6;
+  background: var(--tablet-preview-background, #fbeee6);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tablet-preview-window__body::-webkit-scrollbar {
+  display: none;
 }
 .tablet-preview-window__body img {
   display: block;
@@ -872,6 +888,26 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   border: 1px solid #34332c;
   border-radius: 10px;
   background: #fff;
+  object-fit: contain;
+}
+.tablet-preview-window__body--stacked {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.tablet-preview-window__gallery {
+  overflow: hidden;
+  border: 1px solid #34332c;
+  border-radius: 10px;
+  background: #fff;
+}
+.tablet-preview-window__gallery img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
   object-fit: contain;
 }
 @keyframes tabletPreviewFadeIn {
@@ -928,6 +964,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 }
 
 .app-route-stack { min-height: 100%; }
+/* Click spark overlay: above every page and loader, never catches the pointer. */
+.click-spark { position: fixed; inset: 0; z-index: 9999; width: 100%; height: 100%; pointer-events: none; }
 .app-route-stack.is-returning-to-desk { position: fixed; inset: 0; height: 100%; overflow: hidden; }
 .app-route-stack.is-returning-to-desk .app-route-layer { position: absolute; inset: 0; }
 .app-route-stack.is-returning-to-desk .app-route-layer--desk { z-index: 1; }
@@ -1066,7 +1104,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
 .project-monitor__scene canvas { display: block; width: 100%; height: 100%; }
 /* Front-to-back on the left side: title/description (13), progress bar (12), project links
    (11), white haze (10), floating decor (9). */
-.project-intro { position: relative; z-index: 13; padding: 0; }
+.project-intro { position: relative; z-index: 13; padding: 0; pointer-events: none; }
+/* The intro column is a full-height grid cell that covers the tapes' label area; only the
+   text itself takes pointer events, so the tapes underneath stay clickable. */
+.project-text-anim, .project-details { pointer-events: auto; }
 /* Figma 271:392 (추가3): 1671px of the 3840px frame, full height; 56% white from the left
    edge to 29.8% short of its right edge, then fading out to clear at the right edge. */
 .project-haze {
@@ -1123,6 +1164,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid #382a83; outline-offs
   transition: transform .25s ease;
 }
 a.project-link:hover { transform: translateY(-3px); }
+/* Click area reaches past the visible tape (translucent edges, shadow, the hover lift), so
+   the whole tape and a margin around it counts as the button. */
+a.project-link::before {
+  content: "";
+  position: absolute;
+  inset: calc(-14 * var(--mpx)) calc(-14 * var(--mpx)) calc(-14 * var(--mpx)) calc(-40 * var(--mpx));
+}
 a.project-link:focus-visible { outline: 3px solid #382a83; outline-offset: 3px; }
 .project-link.is-disabled { cursor: default; }
 .project-link__label {
