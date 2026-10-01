@@ -5,6 +5,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export type ProceduralModelOptions = {
   wireframe?: boolean;
@@ -13,6 +15,14 @@ export type ProceduralModelOptions = {
   textureSize?: number;
   textureAnisotropy?: number;
   qualityPriority?: 'reference-fidelity' | 'balanced';
+};
+
+// Options the desk model is built with everywhere (desk page and project monitor page), so the
+// cache below hands both the same instance instead of building the desk twice.
+export const DESK_MODEL_OPTIONS: ProceduralModelOptions = {
+  textureSize: 1024,
+  textureAnisotropy: 4,
+  qualityPriority: 'balanced',
 };
 
 export type ProceduralModelRuntime = {
@@ -179,14 +189,63 @@ function ovalLoop(cx: number, cy: number, rx: number, ry: number, seg = 24): [nu
   return loop;
 }
 
-function buildExtrudeGeometry(profile: { points: [number, number][]; depth: number; holes?: [number, number][][]; ovalHoles?: { cx: number; cy: number; rx: number; ry: number }[] }): THREE.ExtrudeGeometry {
+// `bevel` rounds the slab's edges in profile units (the profile is later scaled to its real
+// size): `size` pulls the cap contour in from the outline, `thickness` is how far the round
+// reaches along the extrusion. The outer size stays the profile's (negative bevelOffset) and the
+// z range stays [0, depth] (the bevel's extra thickness is carved out of `depth`).
+function buildExtrudeGeometry(profile: { points: [number, number][]; depth: number; holes?: [number, number][][]; ovalHoles?: { cx: number; cy: number; rx: number; ry: number }[]; bevel?: { size: number; thickness: number; segments: number } }): THREE.BufferGeometry {
   const holes = [...(profile.holes ?? []), ...((profile.ovalHoles ?? []).map((o) => ovalLoop(o.cx, o.cy, o.rx, o.ry)))];
   const shape = buildExtrudeShape(profile.points, holes);
-  return new THREE.ExtrudeGeometry(shape, {
-    depth: profile.depth,
-    bevelEnabled: false,
+  const bevel = profile.bevel;
+  if (!bevel) {
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: profile.depth,
+      bevelEnabled: false,
+      steps: 1,
+    });
+  }
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: profile.depth - bevel.thickness * 2,
+    bevelEnabled: true,
+    bevelSize: bevel.size,
+    bevelOffset: -bevel.size,
+    bevelThickness: bevel.thickness,
+    bevelSegments: bevel.segments,
     steps: 1,
   });
+  geometry.translate(0, 0, bevel.thickness);
+  // Smooth shading around the round-over, creases kept at the real corners.
+  return toCreasedNormals(geometry, Math.PI / 4);
+}
+
+// A box with its edges really rounded (not just flagged as "bevelled" in the spec), so light
+// catches a highlight along every edge and the desk reads as solid furniture, not clay.
+// Built at the real size: scaling a rounded unit box would squash the radius. Pieces too thin
+// to round (port slots, jacks) stay plain boxes.
+const BOX_BEVEL_RADIUS = 0.012;
+// `swapUv` turns the texture a quarter turn (grain running vertically instead of along the
+// face's width) and `shift` offsets it, so neighbouring wood panels do not repeat one pattern.
+function createBeveledBoxGeometry(
+  width: number,
+  height: number,
+  depth: number,
+  uv: { swapUv?: boolean; shift?: [number, number] } = {},
+): THREE.BufferGeometry {
+  const smallest = Math.min(width, height, depth);
+  const geometry = smallest < 0.006
+    ? new THREE.BoxGeometry(width, height, depth)
+    : new RoundedBoxGeometry(width, height, depth, 3, Math.min(BOX_BEVEL_RADIUS, smallest * 0.3));
+  if (uv.swapUv || uv.shift) {
+    const attribute = geometry.getAttribute('uv') as THREE.BufferAttribute;
+    const [shiftU, shiftV] = uv.shift ?? [0, 0];
+    for (let i = 0; i < attribute.count; i += 1) {
+      const u = attribute.getX(i);
+      const v = attribute.getY(i);
+      attribute.setXY(i, (uv.swapUv ? v : u) + shiftU, (uv.swapUv ? u : v) + shiftV);
+    }
+    attribute.needsUpdate = true;
+  }
+  return geometry;
 }
 
 function hashString(value: string): number {
@@ -280,10 +339,13 @@ function periodicValueNoise(u: number, v: number, seed: number, periodX: number,
   const b = periodicHash(x0 + 1, y0, seed, periodX, periodY);
   const c = periodicHash(x0, y0 + 1, seed, periodX, periodY);
   const d = periodicHash(x0 + 1, y0 + 1, seed, periodX, periodY);
-  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a, b, tx), THREE.MathUtils.lerp(c, d, tx), ty);
+  const top = a + (b - a) * tx;
+  return top + (c + (d - c) * tx - top) * ty;
 }
 
 type SurfaceBand = {
+  periodX: number;
+  periodY: number;
   frequency: number;
   amplitude: number;
   stretchX: number;
@@ -301,7 +363,11 @@ function surfaceBands(spec: SculptMaterialSpec): SurfaceBand[] {
     if (frequency <= 0 || amplitude <= 0) return [];
     const stretch = Array.isArray(band.stretch) ? band.stretch : [1, 1];
     const description = `${String(band.pattern ?? '')} ${String(band.role ?? '')}`.toLowerCase();
+    const stretchX = typeof stretch[0] === 'number' ? Math.max(0.1, stretch[0]) : 1;
+    const stretchY = typeof stretch[1] === 'number' ? Math.max(0.1, stretch[1]) : 1;
     return [{
+      periodX: Math.max(1, Math.round(frequency * stretchX)),
+      periodY: Math.max(1, Math.round(frequency * stretchY)),
       frequency,
       amplitude,
       stretchX: typeof stretch[0] === 'number' ? Math.max(0.1, stretch[0]) : 1,
@@ -310,9 +376,9 @@ function surfaceBands(spec: SculptMaterialSpec): SurfaceBand[] {
     }];
   });
   return parsed.length > 0 ? parsed : [
-    { frequency: 2, amplitude: 0.42, stretchX: 1, stretchY: 1, ridge: false },
-    { frequency: 12, amplitude: 0.22, stretchX: 1, stretchY: 1, ridge: false },
-    { frequency: 56, amplitude: 0.08, stretchX: 1, stretchY: 1, ridge: false },
+    { periodX: 2, periodY: 2, frequency: 2, amplitude: 0.42, stretchX: 1, stretchY: 1, ridge: false },
+    { periodX: 12, periodY: 12, frequency: 12, amplitude: 0.22, stretchX: 1, stretchY: 1, ridge: false },
+    { periodX: 56, periodY: 56, frequency: 56, amplitude: 0.08, stretchX: 1, stretchY: 1, ridge: false },
   ];
 }
 
@@ -321,9 +387,7 @@ function sampleSurface(u: number, v: number, bands: SurfaceBand[], seed: number)
   let weight = 0;
   for (let index = 0; index < bands.length; index += 1) {
     const band = bands[index];
-    const periodX = Math.max(1, Math.round(band.frequency * band.stretchX));
-    const periodY = Math.max(1, Math.round(band.frequency * band.stretchY));
-    let sample = periodicValueNoise(u, v, seed + index * 1013, periodX, periodY);
+    let sample = periodicValueNoise(u, v, seed + index * 1013, band.periodX, band.periodY);
     if (band.ridge) sample = 1 - Math.abs(sample * 2 - 1);
     value += sample * band.amplitude;
     weight += band.amplitude;
@@ -490,6 +554,33 @@ function makeReferenceTextureSet(spec: SculptMaterialSpec, options: ProceduralMo
   };
 }
 
+// Plywood grain: a few long growth lines running along u, bent unevenly by slow noise (so the
+// spacing wanders and the lines drift together and apart), each ring with its own strength,
+// plus faint pore streaks along the grain. Periodic in u and v so the map tiles.
+// Writes [height, pore streaks, tone] into `out`.
+const WOOD_LINES = 6;
+const woodScratch = new Float32Array(3);
+function sampleWoodGrain(u: number, v: number, seed: number, out: Float32Array): void {
+  const bend = (periodicValueNoise(u, v, seed + 11, 2, 2) - 0.5) * 4.2
+    + (periodicValueNoise(u, v, seed + 23, 5, 3) - 0.5) * 1.6;
+  const t = v * WOOD_LINES + bend;
+  const ring = Math.floor(t);
+  const fraction = t - ring;
+  // Rings differ in strength; hashing the ring number modulo the line count keeps the tile seamless.
+  const ringStrength = 0.3 + 0.7 * periodicHash(((ring % WOOD_LINES) + WOOD_LINES) % WOOD_LINES, 0, seed + 5, WOOD_LINES, 1);
+  // Slowly darkens, then drops back over the last tenth like a growth ring (a hard cut would
+  // leave a one-pixel line in the normal map that shimmers at a distance).
+  const line = fraction * fraction * (fraction < 0.9 ? 1 : 1 - smoothCurve((fraction - 0.9) / 0.1)) * ringStrength;
+  const pores = periodicValueNoise(u, v, seed + 37, 5, 90);
+  const macro = periodicValueNoise(u, v, seed + 53, 2, 2);
+  out[0] = clamp01(0.6 * line + 0.16 * pores + 0.24 * macro);
+  out[1] = pores;
+  out[2] = clamp01(0.6 * line + 0.4 * macro);
+}
+
+const SECONDARY_TEXTURE_SIZE = 256;
+const TEXTURE_SIZE_CAP: Record<string, number> = { plywoodBirch: 2048, deskMatRubber: 512 };
+
 function makeProceduralTextureSet(
   id: string,
   spec: SculptMaterialSpec,
@@ -501,7 +592,11 @@ function makeProceduralTextureSet(
   const requestedSize = typeof requested === 'number' && Number.isFinite(requested)
     ? requested
     : (qualityFirst ? 1024 : 512);
-  const size = Math.max(256, Math.min(2048, 2 ** Math.round(Math.log2(requestedSize))));
+  const fullSize = Math.max(256, Math.min(2048, 2 ** Math.round(Math.log2(requestedSize))));
+  // Only the desk wood and the mat cover enough of the screen to need big maps; every other
+  // material (handles, riser parts, ports) is a small object, so 256px is plenty -- and the
+  // procedural noise below is the main cost of building the desk.
+  const size = Math.min(fullSize, TEXTURE_SIZE_CAP[id] ?? SECONDARY_TEXTURE_SIZE);
   const canvases = {
     albedo: makeCanvas(size),
     roughness: makeCanvas(size),
@@ -525,6 +620,7 @@ function makeProceduralTextureSet(
     ao: contexts.ao.createImageData(size, size),
   };
   const seed = hashString(id);
+  const woodGrain = id === 'plywoodBirch';
   const bands = surfaceBands(spec);
   const heightField = new Float32Array(size * size);
   const roughnessField = new Float32Array(size * size);
@@ -541,9 +637,19 @@ function makeProceduralTextureSet(
     for (let x = 0; x < size; x += 1) {
       const u = x / size;
       const index = y * size + x;
-      const height = sampleSurface(u, v, bands, seed + 101);
-      const roughNoise = sampleSurface(u, v, bands, seed + 7001);
-      const colorNoise = sampleSurface(u, v, bands, seed + 15013);
+      let height: number;
+      let roughNoise: number;
+      let colorNoise: number;
+      if (woodGrain) {
+        sampleWoodGrain(u, v, seed, woodScratch);
+        height = woodScratch[0];
+        roughNoise = woodScratch[1];
+        colorNoise = woodScratch[2];
+      } else {
+        height = sampleSurface(u, v, bands, seed + 101);
+        roughNoise = sampleSurface(u, v, bands, seed + 7001);
+        colorNoise = sampleSurface(u, v, bands, seed + 15013);
+      }
       heightField[index] = height;
       roughnessField[index] = clamp01(baseRoughness + (roughNoise - 0.5) * roughnessVariation * 2);
       let color: [number, number, number];
@@ -759,7 +865,7 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   const materialMap: Record<string, THREE.Material> = {};
   materialMap["plywoodBirch"] = createSculptMaterial(
     "plywoodBirch",
-    {"id": "plywoodBirch", "name": "Birch plywood laminate (satin)", "type": "standard", "shaderModel": "MeshStandardMaterial", "baseColor": "#E4D4AE", "color": "#E4D4AE", "albedo": {"dominant": "#E4D4AE", "secondary": ["#D8C69A", "#C9B383"], "samplingNotes": "Pale warm birch tone sampled from the tabletop top face; slightly deeper tone in the reveal/seam shadows."}, "colorVariation": {"palette": ["#E4D4AE", "#D8C69A", "#C9B383"], "pattern": "linear-grain-streaks", "amplitude": 0.08, "heightCorrelation": 0.1}, "textureResolution": 2048, "textureProjection": {"mode": "uv", "repeat": [1.0, 1.0], "anisotropy": 8, "texelDensityIntent": "Preserve stable world-scale grain density across tabletop, leg, and pedestal so grain does not stretch differently per part."}, "surfaceFrequencyBands": [{"id": "macro", "frequency": 1.5, "amplitude": 0.1, "role": "broad panel-to-panel tone variation"}, {"id": "meso", "frequency": 18.0, "amplitude": 0.12, "role": "linear wood-grain streaks"}, {"id": "micro", "frequency": 90.0, "amplitude": 0.04, "role": "satin-finish micro-roughness breakup"}], "roughness": {"base": 0.55, "variation": 0.1, "map": "independent-procedural-field", "localResponse": "slightly lower roughness on the worn front-center edge of the tabletop"}, "metalness": {"base": 0.0, "variation": 0.0}, "normal": {"pattern": "derived-from-independent-height-field", "strength": 0.25, "scale": 18.0, "space": "tangent"}, "bump": {"pattern": "linear-grain", "amplitude": 0.008, "scale": 18.0}, "displacement": {"pattern": "none", "amplitude": 0.0, "scale": 1.0, "silhouetteAffects": false}, "ambientOcclusion": {"cavityStrength": 0.3, "contactShadowBias": 0.4, "notes": "Darken the drawer reveal gaps, the pedestal top-inset line, and the desk's floor contact lines."}, "wear": {"edgeWear": 0.1, "scratches": [], "chips": []}, "dirt": {"amount": 0.0, "cavityBias": 0.0, "color": "#2F2A22"}, "localOverrides": [{"id": "edge-band-lamination", "appliesTo": ["tabletop", "leftLegPanel"], "zone": "cut-edge UV strip", "description": "Alternating thin light (#E4D4AE) and dark (#8A6A3E) horizontal bands simulating visible plywood ply lines on every exposed cut edge.", "evidenceRefs": ["tabletop-thickness-edge-band"]}, {"id": "reveal-line-darkening", "appliesTo": ["pedestalCarcass", "drawerFront0", "drawerFront1", "drawerFront2"], "zone": "reveal gap faces", "description": "Reveal gaps and the pedestal-to-tabletop seam read near-black (#1A1712) in the crevice, not the base albedo.", "evidenceRefs": ["pedestal-drawer-reveal-gaps", "pedestal-top-inset-line"]}], "shaderNotes": ["MeshStandardMaterial is sufficient; no clearcoat/transmission observed on this finish.", "Bake the edge-band lamination as a separate material index / UV region rather than a full-surface texture so the top/bottom faces stay a clean solid-ish tone.", "Keep roughness in the 0.45-0.65 range; this reads as satin/low-sheen laminate, not gloss lacquer and not raw unfinished wood."], "notes": "Shared by tabletop, leftLegPanel, pedestalCarcass, and all three drawerFronts so the whole carcass reads as one continuous material family."},
+    {"id": "plywoodBirch", "name": "Birch plywood laminate (satin)", "type": "standard", "shaderModel": "MeshStandardMaterial", "baseColor": "#E4D4AE", "color": "#E4D4AE", "albedo": {"dominant": "#E4D4AE", "secondary": ["#D8C69A", "#C9B383"], "samplingNotes": "Pale warm birch tone sampled from the tabletop top face; slightly deeper tone in the reveal/seam shadows."}, "colorVariation": {"palette": ["#E4D4AE", "#D8C69A", "#C9B383"], "pattern": "linear-grain-streaks", "amplitude": 0.1, "heightCorrelation": 0.18}, "textureResolution": 2048, "textureProjection": {"mode": "uv", "repeat": [1.0, 1.0], "anisotropy": 8, "texelDensityIntent": "Preserve stable world-scale grain density across tabletop, leg, and pedestal so grain does not stretch differently per part."}, "surfaceFrequencyBands": [{"id": "macro", "frequency": 1.5, "amplitude": 0.1, "role": "broad panel-to-panel tone variation"}, {"id": "meso", "frequency": 40.0, "amplitude": 0.14, "stretch": [0.12, 1], "role": "linear wood-grain streaks"}, {"id": "micro", "frequency": 90.0, "amplitude": 0.04, "role": "satin-finish micro-roughness breakup"}], "roughness": {"base": 0.42, "variation": 0.1, "map": "independent-procedural-field", "localResponse": "slightly lower roughness on the worn front-center edge of the tabletop"}, "metalness": {"base": 0.0, "variation": 0.0}, "normal": {"pattern": "derived-from-independent-height-field", "strength": 0.32, "scale": 18.0, "space": "tangent"}, "bump": {"pattern": "linear-grain", "amplitude": 0.009, "scale": 18.0}, "displacement": {"pattern": "none", "amplitude": 0.0, "scale": 1.0, "silhouetteAffects": false}, "ambientOcclusion": {"cavityStrength": 0.3, "contactShadowBias": 0.4, "notes": "Darken the drawer reveal gaps, the pedestal top-inset line, and the desk's floor contact lines."}, "wear": {"edgeWear": 0.1, "scratches": [], "chips": []}, "dirt": {"amount": 0.0, "cavityBias": 0.0, "color": "#2F2A22"}, "localOverrides": [{"id": "edge-band-lamination", "appliesTo": ["tabletop", "leftLegPanel"], "zone": "cut-edge UV strip", "description": "Alternating thin light (#E4D4AE) and dark (#8A6A3E) horizontal bands simulating visible plywood ply lines on every exposed cut edge.", "evidenceRefs": ["tabletop-thickness-edge-band"]}, {"id": "reveal-line-darkening", "appliesTo": ["pedestalCarcass", "drawerFront0", "drawerFront1", "drawerFront2"], "zone": "reveal gap faces", "description": "Reveal gaps and the pedestal-to-tabletop seam read near-black (#1A1712) in the crevice, not the base albedo.", "evidenceRefs": ["pedestal-drawer-reveal-gaps", "pedestal-top-inset-line"]}], "shaderNotes": ["MeshStandardMaterial is sufficient; no clearcoat/transmission observed on this finish.", "Bake the edge-band lamination as a separate material index / UV region rather than a full-surface texture so the top/bottom faces stay a clean solid-ish tone.", "Keep roughness in the 0.45-0.65 range; this reads as satin/low-sheen laminate, not gloss lacquer and not raw unfinished wood."], "notes": "Shared by tabletop, leftLegPanel, pedestalCarcass, and all three drawerFronts so the whole carcass reads as one continuous material family."},
     options
   );
   materialMap["metalHardware"] = createSculptMaterial(
@@ -836,7 +942,7 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["tabletop"] = node_tabletop_0;
   const mesh_tabletop_0Geometry = endpoint_tabletop_0
     ? new THREE.CylinderGeometry(endpoint_tabletop_0.endRadius, endpoint_tabletop_0.baseRadius, endpoint_tabletop_0.length, 32, 12)
-    : buildExtrudeGeometry({"points": [[-0.5, -0.5], [-0.375, -0.46], [-0.25, -0.4], [-0.125, -0.36], [0.0, -0.38], [0.125, -0.44], [0.25, -0.49], [0.375, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]], "depth": 1.0});
+    : buildExtrudeGeometry({"points": [[-0.5, -0.5], [-0.375, -0.46], [-0.25, -0.4], [-0.125, -0.36], [0.0, -0.38], [0.125, -0.44], [0.25, -0.49], [0.375, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]], "depth": 1.0, "bevel": {"size": 0.0045, "thickness": 0.16, "segments": 3}});
   if (!endpoint_tabletop_0) {
     mesh_tabletop_0Geometry.scale(1.7, 0.78, 0.035);
   }
@@ -875,9 +981,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["leftLegPanel"] = node_leftLegPanel_1;
   const mesh_leftLegPanel_1Geometry = endpoint_leftLegPanel_1
     ? new THREE.CylinderGeometry(endpoint_leftLegPanel_1.endRadius, endpoint_leftLegPanel_1.baseRadius, endpoint_leftLegPanel_1.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_leftLegPanel_1) {
-    mesh_leftLegPanel_1Geometry.scale(0.42, 0.685, 0.78);
+    mesh_leftLegPanel_1Geometry.copy(createBeveledBoxGeometry(0.42, 0.685, 0.78, { swapUv: true, shift: [0.31, 0.12] }));
   }
   const mesh_leftLegPanel_1 = new THREE.Mesh(
     mesh_leftLegPanel_1Geometry,
@@ -914,9 +1020,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["pedestalCarcass"] = node_pedestalCarcass_2;
   const mesh_pedestalCarcass_2Geometry = endpoint_pedestalCarcass_2
     ? new THREE.CylinderGeometry(endpoint_pedestalCarcass_2.endRadius, endpoint_pedestalCarcass_2.baseRadius, endpoint_pedestalCarcass_2.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_pedestalCarcass_2) {
-    mesh_pedestalCarcass_2Geometry.scale(0.46, 0.685, 0.6);
+    mesh_pedestalCarcass_2Geometry.copy(createBeveledBoxGeometry(0.46, 0.685, 0.6, { swapUv: true, shift: [0.67, 0.43] }));
   }
   const mesh_pedestalCarcass_2 = new THREE.Mesh(
     mesh_pedestalCarcass_2Geometry,
@@ -974,9 +1080,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["drawerFront0"] = node_drawerFront0_3;
   const mesh_drawerFront0_3Geometry = endpoint_drawerFront0_3
     ? new THREE.CylinderGeometry(endpoint_drawerFront0_3.endRadius, endpoint_drawerFront0_3.baseRadius, endpoint_drawerFront0_3.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_drawerFront0_3) {
-    mesh_drawerFront0_3Geometry.scale(0.42, 0.21, 0.02);
+    mesh_drawerFront0_3Geometry.copy(createBeveledBoxGeometry(0.42, 0.21, 0.02, { shift: [0.17, 0.05] }));
   }
   const mesh_drawerFront0_3 = new THREE.Mesh(
     mesh_drawerFront0_3Geometry,
@@ -1020,9 +1126,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["drawerFront1"] = node_drawerFront1_4;
   const mesh_drawerFront1_4Geometry = endpoint_drawerFront1_4
     ? new THREE.CylinderGeometry(endpoint_drawerFront1_4.endRadius, endpoint_drawerFront1_4.baseRadius, endpoint_drawerFront1_4.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_drawerFront1_4) {
-    mesh_drawerFront1_4Geometry.scale(0.42, 0.21, 0.02);
+    mesh_drawerFront1_4Geometry.copy(createBeveledBoxGeometry(0.42, 0.21, 0.02, { shift: [0.44, 0.52] }));
   }
   const mesh_drawerFront1_4 = new THREE.Mesh(
     mesh_drawerFront1_4Geometry,
@@ -1066,9 +1172,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["drawerFront2"] = node_drawerFront2_5;
   const mesh_drawerFront2_5Geometry = endpoint_drawerFront2_5
     ? new THREE.CylinderGeometry(endpoint_drawerFront2_5.endRadius, endpoint_drawerFront2_5.baseRadius, endpoint_drawerFront2_5.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_drawerFront2_5) {
-    mesh_drawerFront2_5Geometry.scale(0.42, 0.21, 0.02);
+    mesh_drawerFront2_5Geometry.copy(createBeveledBoxGeometry(0.42, 0.21, 0.02, { shift: [0.81, 0.28] }));
   }
   const mesh_drawerFront2_5 = new THREE.Mesh(
     mesh_drawerFront2_5Geometry,
@@ -1232,9 +1338,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["deskMat"] = node_deskMat_9;
   const mesh_deskMat_9Geometry = endpoint_deskMat_9
     ? new THREE.CylinderGeometry(endpoint_deskMat_9.endRadius, endpoint_deskMat_9.baseRadius, endpoint_deskMat_9.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_deskMat_9) {
-    mesh_deskMat_9Geometry.scale(0.85, 0.008, 0.35);
+    mesh_deskMat_9Geometry.copy(createBeveledBoxGeometry(0.85, 0.008, 0.35));
   }
   const mesh_deskMat_9 = new THREE.Mesh(
     mesh_deskMat_9Geometry,
@@ -1388,9 +1494,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["leftBarFront"] = node_leftBarFront_13;
   const mesh_leftBarFront_13Geometry = endpoint_leftBarFront_13
     ? new THREE.CylinderGeometry(endpoint_leftBarFront_13.endRadius, endpoint_leftBarFront_13.baseRadius, endpoint_leftBarFront_13.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_leftBarFront_13) {
-    mesh_leftBarFront_13Geometry.scale(0.032, 0.0325, 0.01);
+    mesh_leftBarFront_13Geometry.copy(createBeveledBoxGeometry(0.032, 0.0325, 0.01));
   }
   const mesh_leftBarFront_13 = new THREE.Mesh(
     mesh_leftBarFront_13Geometry,
@@ -1427,9 +1533,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["leftBarBack"] = node_leftBarBack_14;
   const mesh_leftBarBack_14Geometry = endpoint_leftBarBack_14
     ? new THREE.CylinderGeometry(endpoint_leftBarBack_14.endRadius, endpoint_leftBarBack_14.baseRadius, endpoint_leftBarBack_14.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_leftBarBack_14) {
-    mesh_leftBarBack_14Geometry.scale(0.032, 0.0325, 0.01);
+    mesh_leftBarBack_14Geometry.copy(createBeveledBoxGeometry(0.032, 0.0325, 0.01));
   }
   const mesh_leftBarBack_14 = new THREE.Mesh(
     mesh_leftBarBack_14Geometry,
@@ -1466,9 +1572,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["leftBarBottom"] = node_leftBarBottom_15;
   const mesh_leftBarBottom_15Geometry = endpoint_leftBarBottom_15
     ? new THREE.CylinderGeometry(endpoint_leftBarBottom_15.endRadius, endpoint_leftBarBottom_15.baseRadius, endpoint_leftBarBottom_15.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_leftBarBottom_15) {
-    mesh_leftBarBottom_15Geometry.scale(0.032, 0.0075, 0.135);
+    mesh_leftBarBottom_15Geometry.copy(createBeveledBoxGeometry(0.032, 0.0075, 0.135));
   }
   const mesh_leftBarBottom_15 = new THREE.Mesh(
     mesh_leftBarBottom_15Geometry,
@@ -1505,9 +1611,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["rightBarFront"] = node_rightBarFront_16;
   const mesh_rightBarFront_16Geometry = endpoint_rightBarFront_16
     ? new THREE.CylinderGeometry(endpoint_rightBarFront_16.endRadius, endpoint_rightBarFront_16.baseRadius, endpoint_rightBarFront_16.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_rightBarFront_16) {
-    mesh_rightBarFront_16Geometry.scale(0.032, 0.0325, 0.01);
+    mesh_rightBarFront_16Geometry.copy(createBeveledBoxGeometry(0.032, 0.0325, 0.01));
   }
   const mesh_rightBarFront_16 = new THREE.Mesh(
     mesh_rightBarFront_16Geometry,
@@ -1544,9 +1650,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["rightBarBack"] = node_rightBarBack_17;
   const mesh_rightBarBack_17Geometry = endpoint_rightBarBack_17
     ? new THREE.CylinderGeometry(endpoint_rightBarBack_17.endRadius, endpoint_rightBarBack_17.baseRadius, endpoint_rightBarBack_17.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_rightBarBack_17) {
-    mesh_rightBarBack_17Geometry.scale(0.032, 0.0325, 0.01);
+    mesh_rightBarBack_17Geometry.copy(createBeveledBoxGeometry(0.032, 0.0325, 0.01));
   }
   const mesh_rightBarBack_17 = new THREE.Mesh(
     mesh_rightBarBack_17Geometry,
@@ -1583,9 +1689,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["rightBarBottom"] = node_rightBarBottom_18;
   const mesh_rightBarBottom_18Geometry = endpoint_rightBarBottom_18
     ? new THREE.CylinderGeometry(endpoint_rightBarBottom_18.endRadius, endpoint_rightBarBottom_18.baseRadius, endpoint_rightBarBottom_18.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_rightBarBottom_18) {
-    mesh_rightBarBottom_18Geometry.scale(0.032, 0.0075, 0.135);
+    mesh_rightBarBottom_18Geometry.copy(createBeveledBoxGeometry(0.032, 0.0075, 0.135));
   }
   const mesh_rightBarBottom_18 = new THREE.Mesh(
     mesh_rightBarBottom_18Geometry,
@@ -1622,9 +1728,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["portPanel"] = node_portPanel_19;
   const mesh_portPanel_19Geometry = endpoint_portPanel_19
     ? new THREE.CylinderGeometry(endpoint_portPanel_19.endRadius, endpoint_portPanel_19.baseRadius, endpoint_portPanel_19.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_portPanel_19) {
-    mesh_portPanel_19Geometry.scale(0.003, 0.07, 0.115);
+    mesh_portPanel_19Geometry.copy(createBeveledBoxGeometry(0.003, 0.07, 0.115));
   }
   const mesh_portPanel_19 = new THREE.Mesh(
     mesh_portPanel_19Geometry,
@@ -1661,9 +1767,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["micJack"] = node_micJack_20;
   const mesh_micJack_20Geometry = endpoint_micJack_20
     ? new THREE.CylinderGeometry(endpoint_micJack_20.endRadius, endpoint_micJack_20.baseRadius, endpoint_micJack_20.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_micJack_20) {
-    mesh_micJack_20Geometry.scale(0.002, 0.012, 0.012);
+    mesh_micJack_20Geometry.copy(createBeveledBoxGeometry(0.002, 0.012, 0.012));
   }
   const mesh_micJack_20 = new THREE.Mesh(
     mesh_micJack_20Geometry,
@@ -1700,9 +1806,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["headphoneJack"] = node_headphoneJack_21;
   const mesh_headphoneJack_21Geometry = endpoint_headphoneJack_21
     ? new THREE.CylinderGeometry(endpoint_headphoneJack_21.endRadius, endpoint_headphoneJack_21.baseRadius, endpoint_headphoneJack_21.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_headphoneJack_21) {
-    mesh_headphoneJack_21Geometry.scale(0.002, 0.012, 0.012);
+    mesh_headphoneJack_21Geometry.copy(createBeveledBoxGeometry(0.002, 0.012, 0.012));
   }
   const mesh_headphoneJack_21 = new THREE.Mesh(
     mesh_headphoneJack_21Geometry,
@@ -1739,9 +1845,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["usbSlot1"] = node_usbSlot1_22;
   const mesh_usbSlot1_22Geometry = endpoint_usbSlot1_22
     ? new THREE.CylinderGeometry(endpoint_usbSlot1_22.endRadius, endpoint_usbSlot1_22.baseRadius, endpoint_usbSlot1_22.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_usbSlot1_22) {
-    mesh_usbSlot1_22Geometry.scale(0.0015, 0.02, 0.007);
+    mesh_usbSlot1_22Geometry.copy(createBeveledBoxGeometry(0.0015, 0.02, 0.007));
   }
   const mesh_usbSlot1_22 = new THREE.Mesh(
     mesh_usbSlot1_22Geometry,
@@ -1778,9 +1884,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["usbSlot2"] = node_usbSlot2_23;
   const mesh_usbSlot2_23Geometry = endpoint_usbSlot2_23
     ? new THREE.CylinderGeometry(endpoint_usbSlot2_23.endRadius, endpoint_usbSlot2_23.baseRadius, endpoint_usbSlot2_23.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_usbSlot2_23) {
-    mesh_usbSlot2_23Geometry.scale(0.0015, 0.02, 0.007);
+    mesh_usbSlot2_23Geometry.copy(createBeveledBoxGeometry(0.0015, 0.02, 0.007));
   }
   const mesh_usbSlot2_23 = new THREE.Mesh(
     mesh_usbSlot2_23Geometry,
@@ -1817,9 +1923,9 @@ function buildCurvedBirchPlyDeskSetupModel(options: ProceduralModelOptions = {})
   nodes["usbSlot3"] = node_usbSlot3_24;
   const mesh_usbSlot3_24Geometry = endpoint_usbSlot3_24
     ? new THREE.CylinderGeometry(endpoint_usbSlot3_24.endRadius, endpoint_usbSlot3_24.baseRadius, endpoint_usbSlot3_24.length, 32, 12)
-    : new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+    : new THREE.BoxGeometry(1, 1, 1);
   if (!endpoint_usbSlot3_24) {
-    mesh_usbSlot3_24Geometry.scale(0.0015, 0.02, 0.007);
+    mesh_usbSlot3_24Geometry.copy(createBeveledBoxGeometry(0.0015, 0.02, 0.007));
   }
   const mesh_usbSlot3_24 = new THREE.Mesh(
     mesh_usbSlot3_24Geometry,
@@ -1855,21 +1961,23 @@ export function createCurvedBirchPlyDeskSetupLookDevLights(
   const hemi = new THREE.HemisphereLight(
     mode === 'reference' ? 0xfff0d6 : 0xf2f4ff,
     0x363b42,
-    mode === 'grazing' ? 0.28 : mode === 'reference' ? 0.72 : 0.85,
+    mode === 'grazing' ? 0.28 : mode === 'reference' ? 0.72 : 0.55,
   );
   lights.add(hemi);
   const key = new THREE.DirectionalLight(
     mode === 'reference' ? 0xffcf8a : 0xfff4e8,
-    mode === 'grazing' ? 4.2 : mode === 'reference' ? 2.6 : 2.15,
+    mode === 'grazing' ? 4.2 : mode === 'reference' ? 2.6 : 2.6,
   );
   if (mode === 'grazing') key.position.set(7.5, 1.1, 4.0);
   else if (mode === 'reference') key.position.set(-4.5, 7.5, 5.0);
   else key.position.set(-4.0, 6.0, 5.5);
   key.castShadow = true;
-  key.shadow.mapSize.set(4096, 4096);
+  // Redrawn every frame (the desk objects float), so a 4096 map was the heaviest GPU cost on
+  // the page; 2048 is still ~2.5mm per texel across the 5.2m frustum and the edge is soft anyway.
+  key.shadow.mapSize.set(2048, 2048);
   key.shadow.bias = -0.00025;
   key.shadow.normalBias = 0.018;
-  key.shadow.radius = 7;
+  key.shadow.radius = 4;
   key.shadow.blurSamples = 24;
   key.shadow.camera.near = 0.5;
   key.shadow.camera.far = 30;
@@ -1882,7 +1990,7 @@ export function createCurvedBirchPlyDeskSetupLookDevLights(
   const fill = new THREE.DirectionalLight(0xa8c4ff, mode === 'grazing' ? 0.12 : 0.42);
   fill.position.set(4.0, 3.0, 3.5);
   lights.add(fill);
-  const rim = new THREE.DirectionalLight(0xfff1c4, mode === 'grazing' ? 0.28 : 0.85);
+  const rim = new THREE.DirectionalLight(0xfff1c4, mode === 'grazing' ? 0.28 : 1.1);
   rim.position.set(0.5, 4.5, -6.0);
   lights.add(rim);
   lights.userData.reviewMode = mode;

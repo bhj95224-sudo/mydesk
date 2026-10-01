@@ -40,6 +40,10 @@ export type Project = {
   externalUrl?: string;
   /** Color blocks of the "프로젝트 보러가기" / "기획서 보러가기" tapes (top, bottom). */
   tapeColors?: [string, string];
+  /** Hide the "기획서 보러가기" tape (proposal not ready yet); its slot is kept so the other tape stays put. */
+  hideProposalTape?: boolean;
+  /** In-app route of the proposal ("기획서") page opened by the "기획서 보러가기" tape. */
+  proposalHref?: string;
   /** Floating decorative objects shown only while this project is active, at their Figma-specified position. */
   decor: DecorItem[];
 };
@@ -65,6 +69,7 @@ const projectCatalog: Project[] = [
     contentVideo: '/assets/projects/sulwhasoo-preview.mp4',
     externalUrl: 'https://harperppppppp.github.io/sulwhasoo/',
     tapeColors: ['#FF932D', '#E8B171'],
+    proposalHref: '#/sulwhasoo-proposal',
     decor: [
       { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '66.41%', top: '67.78%', rotate: -129.31, flipY: true, overflowOffsetX: 270, overflowOffsetY: 310 },
       { src: '/assets/projects/sulwhasoo-flower.png', width: '61.73vh', height: '58.89vh', left: '8.02%', top: '50.37%', rotate: -50.69 },
@@ -91,7 +96,14 @@ const projectCatalog: Project[] = [
     contentVideo: '/assets/projects/jaduya-preview.mp4',
     externalUrl: 'https://jaduya.vercel.app/login',
     tapeColors: ['#DF4F4C', '#B4C62D'],
-    decor: [],
+    hideProposalTape: true,
+    // Positions converted from the Figma 3840x1906 frame (node 361:102) onto the 1920x1080 reference page.
+    decor: [
+      { src: '/assets/projects/jaduya-flower.png', width: '17.26vh', height: '17.26vh', left: '22.00%', top: '26.82%', rotate: 36.15 },
+      { src: '/assets/projects/jaduya-plum.png', width: '14.50vh', height: '14.50vh', left: '80.56%', top: '50.05%', rotate: 157.86, flipY: true },
+      { src: '/assets/projects/jaduya-sprout.png', width: '14.54vh', height: '14.54vh', left: '74.54%', top: '82.55%', rotate: -35.09 },
+      { src: '/assets/projects/jaduya-character.svg', width: '24.38vh', height: '13.61vh', left: '29.41%', top: '78.88%' },
+    ],
   },
   {
     id: 'beplain',
@@ -111,6 +123,7 @@ const projectCatalog: Project[] = [
     progressSegment: '#DF2684',
     contentImage: '/assets/projects/beplain-content.png',
     tapeColors: ['#FF9FC7', '#90FF00'],
+    hideProposalTape: true,
     decor: [
       { src: '/assets/projects/beplain-swirl.png', width: '40vh', height: '40vh', left: '11.09%', top: '25.00%', rotate: -49.91 },
       { src: '/assets/projects/beplain-orb.png', width: '7vh', height: '7vh', left: '27.81%', top: '57.87%' },

@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { PRESS_DEPTH, type PressableKey } from './createKeyboardModel';
+import { type PressableKey } from './createKeyboardModel';
 
 const PRESS_MS = 70;
 const HOLD_MS = 50;
 const RELEASE_MS = 120;
 const HOVER_EMISSIVE = 0x2a2a26;
+// Plain (non-skill) keys react to the pointer only a little.
+const SOFT_HOVER_EMISSIVE = 0x121210;
 
 type KeyState = 'idle' | 'pressing' | 'holding' | 'releasing';
 
@@ -21,7 +23,48 @@ export type UpdateFn = ((now: number) => void) & {
   // Plays the press motion on the pressable key with this label (e.g. from a physical key
   // press) -- motion only, no onKeyPress. No-op for keys that aren't pressable.
   pressKey: (letter: string) => void;
+  // Plays the press motion for a physical KeyboardEvent.code (any key: letters, digits,
+  // space, modifiers, punctuation, F-keys) -- motion only, no onKeyPress.
+  pressCode: (code: string) => void;
 };
+
+// KeyboardEvent.code -> the model key's label (and which one of a left/right pair).
+const CODE_LABELS: Record<string, { label: string; side?: 'left' | 'right' }> = {
+  Space: { label: '' },
+  Enter: { label: 'Enter' },
+  NumpadEnter: { label: 'Enter' },
+  Backspace: { label: 'Backspace' },
+  Tab: { label: 'Tab' },
+  CapsLock: { label: 'Caps' },
+  Escape: { label: 'Esc' },
+  ContextMenu: { label: 'Menu' },
+  ShiftLeft: { label: 'Shift', side: 'left' },
+  ShiftRight: { label: 'Shift', side: 'right' },
+  ControlLeft: { label: 'Ctrl', side: 'left' },
+  ControlRight: { label: 'Ctrl', side: 'right' },
+  AltLeft: { label: 'Alt', side: 'left' },
+  AltRight: { label: 'Alt', side: 'right' },
+  MetaLeft: { label: 'Win', side: 'left' },
+  Backquote: { label: '~' },
+  Minus: { label: '-' },
+  Equal: { label: '=' },
+  BracketLeft: { label: '[' },
+  BracketRight: { label: ']' },
+  Backslash: { label: '\\' },
+  Semicolon: { label: ';' },
+  Quote: { label: "'" },
+  Comma: { label: ',' },
+  Period: { label: '.' },
+  Slash: { label: '/' },
+};
+
+function labelForCode(code: string): { label: string; side?: 'left' | 'right' } | null {
+  if (CODE_LABELS[code]) return CODE_LABELS[code];
+  if (/^Key[A-Z]$/.test(code)) return { label: code.slice(3) };
+  if (/^Digit[0-9]$/.test(code)) return { label: code.slice(5) };
+  if (/^F([1-9]|1[0-2])$/.test(code)) return { label: code };
+  return null;
+}
 
 export function attachKeyboardInteractions(
   renderer: THREE.WebGLRenderer,
@@ -85,7 +128,7 @@ export function attachKeyboardInteractions(
     if (hit !== hovered) {
       if (hovered) setEmissive(hovered, 0x000000);
       hovered = hit;
-      if (hovered) setEmissive(hovered, HOVER_EMISSIVE);
+      if (hovered) setEmissive(hovered, hovered.userData.skill ? HOVER_EMISSIVE : SOFT_HOVER_EMISSIVE);
       renderer.domElement.style.cursor = hovered ? 'pointer' : 'auto';
     }
   }
@@ -101,6 +144,8 @@ export function attachKeyboardInteractions(
     if (!anim || anim.state !== 'idle') return;
     anim.state = 'pressing';
     anim.phaseStart = performance.now();
+    // Plain keys just move; only the skill keys open a card.
+    if (!hit.userData.skill) return;
     const letter = hit.userData.key as string;
     onKeyPress?.(letter);
     renderer.domElement.dispatchEvent(
@@ -125,22 +170,23 @@ export function attachKeyboardInteractions(
       if (anim.state === 'idle') continue;
       const elapsed = now - anim.phaseStart;
       const restY = anim.group.userData.restY;
+      const pressDepth = anim.group.userData.pressDepth;
       if (anim.state === 'pressing') {
         const t = Math.min(1, elapsed / PRESS_MS);
-        anim.group.position.y = restY - PRESS_DEPTH * t;
+        anim.group.position.y = restY - pressDepth * t;
         if (elapsed >= PRESS_MS) {
           anim.state = 'holding';
           anim.phaseStart = now;
         }
       } else if (anim.state === 'holding') {
-        anim.group.position.y = restY - PRESS_DEPTH;
+        anim.group.position.y = restY - pressDepth;
         if (elapsed >= HOLD_MS) {
           anim.state = 'releasing';
           anim.phaseStart = now;
         }
       } else if (anim.state === 'releasing') {
         const t = Math.min(1, elapsed / RELEASE_MS);
-        anim.group.position.y = restY - PRESS_DEPTH * (1 - t);
+        anim.group.position.y = restY - pressDepth * (1 - t);
         if (elapsed >= RELEASE_MS) {
           anim.state = 'idle';
           anim.group.position.y = restY;
@@ -158,8 +204,22 @@ export function attachKeyboardInteractions(
     anim.phaseStart = performance.now();
   };
 
+  update.pressCode = (code: string) => {
+    const target = labelForCode(code);
+    if (!target) return;
+    const matches = [...anims.values()]
+      .filter((candidate) => candidate.group.userData.key.toUpperCase() === target.label.toUpperCase())
+      .sort((a, b) => a.group.position.x - b.group.position.x);
+    if (matches.length === 0) return;
+    // Left/right pairs (Shift, Ctrl, Alt) -- the left one is the one with the smaller x.
+    const anim = target.side === 'right' ? matches[matches.length - 1] : matches[0];
+    anim.state = 'pressing';
+    anim.phaseStart = performance.now();
+  };
+
   update.pressRandomKey = () => {
-    const idle = [...anims.values()].filter((anim) => anim.state === 'idle');
+    // The idle typing only plays on the skill keys.
+    const idle = [...anims.values()].filter((anim) => anim.state === 'idle' && anim.group.userData.skill);
     if (idle.length === 0) return;
     const anim = idle[Math.floor(Math.random() * idle.length)];
     anim.state = 'pressing';

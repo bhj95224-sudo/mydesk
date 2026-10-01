@@ -24,6 +24,8 @@ export interface TabletPlaceholderItem extends TabletPhysicsItemBase {
   previewTitle?: string;
   previewSrc?: string;
   previewAlt?: string;
+  previewImages?: { src: string; alt: string }[];
+  previewTone?: 'olive' | 'sky';
 }
 
 export interface TabletImageItem extends TabletPhysicsItemBase {
@@ -68,6 +70,14 @@ export const tabletPlaceholders: TabletPlaceholderItem[] = [
     spawnX: 0.53,
     spawnOffsetY: 260,
     spawnDelay: 130,
+    src: '/assets/tablet/jaduya-illustration-4.png',
+    previewEyebrow: 'ILLUSTRATION',
+    previewTitle: '자두야',
+    previewTone: 'olive',
+    previewImages: [
+      { src: '/assets/tablet/jaduya-illustration-4.png', alt: '자두야 로고 디자인 아이디어와 적용안' },
+      { src: '/assets/tablet/jaduya-illustration-3.png', alt: '자두야 캐릭터와 아이콘 디자인 과정' },
+    ],
   },
   {
     id: 'tablet-work-small',
@@ -82,6 +92,11 @@ export const tabletPlaceholders: TabletPlaceholderItem[] = [
     spawnX: 0.78,
     spawnOffsetY: 440,
     spawnDelay: 260,
+    src: '/assets/tablet/screen-background.png',
+    previewEyebrow: 'ILLUSTRATION',
+    previewTitle: '자두야',
+    previewAlt: '하늘과 구름, 언덕과 꽃밭이 그려진 배경 일러스트',
+    previewTone: 'sky',
   },
 ];
 

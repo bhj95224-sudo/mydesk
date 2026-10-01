@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import {
   createCurvedBirchPlyDeskSetupModel,
+  DESK_MODEL_OPTIONS,
   createCurvedBirchPlyDeskSetupLookDevLights,
   configureCurvedBirchPlyDeskSetupRenderer,
   createCurvedBirchPlyDeskSetupEnvironment,
@@ -100,7 +101,7 @@ const FLOAT_PERIOD_MS = { monitor: 4200, keyboard: 4700, tablet: 3900 };
 // Only the top drawer (drawerFront2, its handle and its interior box) is the hover/click
 // hit-zone -- the lower drawers stay inert.
 const DRAWER_SLIDE_DISTANCE = 0.18;
-const DRAWER_SLIDE_EASE = 0.12;
+const DRAWER_SLIDE_EASE = 0.2;
 // Document folder stored upright in the top drawer. Hovering the drawer makes it peek out;
 // clicking lifts it out and lays it flat on the desk, and the contact note opens once it
 // has (mostly) landed.
@@ -205,8 +206,8 @@ function drawMonitorSlide(context: CanvasRenderingContext2D, image: HTMLImageEle
   context.globalAlpha = 1;
 }
 
-const INTRO_OBJECT_DURATION_MS = 600;
-const INTRO_TOTAL_DURATION_MS = 860;
+const INTRO_OBJECT_DURATION_MS = 420;
+const INTRO_TOTAL_DURATION_MS = 600;
 
 function smootherStep(progress: number): number {
   return progress * progress * progress * (progress * (progress * 6 - 15) + 10);
@@ -385,18 +386,15 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
       const scene = new THREE.Scene();
       const environment = createCurvedBirchPlyDeskSetupEnvironment(renderer);
       scene.environment = environment;
-      scene.environmentIntensity = 1.0;
+      // Lower than the key light on purpose: a strong room reflection fills in the shadow sides
+      // and flattens every face to the same tone.
+      scene.environmentIntensity = 0.7;
 
       const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
 
-      // The source model defaults to multi-megapixel procedural maps for look-dev.
-      // The entry-page canvas is much smaller, so 512px maps avoid tens of millions
-      // of synchronous texture samples without a visible loss at this display size.
-      const model = createCurvedBirchPlyDeskSetupModel({
-        textureSize: 512,
-        textureAnisotropy: 4,
-        qualityPriority: 'balanced',
-      });
+      // Shared options (see DESK_MODEL_OPTIONS): the desk wood gets a 1024px map, every
+      // other material a small one, and the project monitor page reuses this same instance.
+      const model = createCurvedBirchPlyDeskSetupModel(DESK_MODEL_OPTIONS);
       scene.add(model);
 
       // The desk's own baked contact-shadow look comes from a real per-material aoMap (see
@@ -439,7 +437,29 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
         uDeskSolidColor: { value: new THREE.Color('#ffffff') },
         uDeskSolidAmount: { value: 0 },
         uDeskLightInfluence: { value: 1 },
+        // Average color of the wood albedo map; the solid color is modulated by (texel / mean)
+        // so the swatch stays the desk's average color while the grain survives.
+        uDeskAlbedoMean: { value: new THREE.Color(1, 1, 1) },
       };
+      const albedoImage = plywoodMaterial?.map?.image;
+      if (albedoImage instanceof HTMLCanvasElement) {
+        const probe = document.createElement('canvas');
+        probe.width = 8;
+        probe.height = 8;
+        const probeContext = probe.getContext('2d');
+        if (probeContext) {
+          probeContext.drawImage(albedoImage, 0, 0, 8, 8);
+          const pixels = probeContext.getImageData(0, 0, 8, 8).data;
+          const mean = [0, 0, 0];
+          for (let i = 0; i < pixels.length; i += 4) {
+            mean[0] += pixels[i];
+            mean[1] += pixels[i + 1];
+            mean[2] += pixels[i + 2];
+          }
+          const samples = pixels.length / 4;
+          solidUniforms.uDeskAlbedoMean.value.setRGB(mean[0] / samples / 255, mean[1] / samples / 255, mean[2] / samples / 255, THREE.SRGBColorSpace);
+        }
+      }
       const solidHookInstalled = plywoodMaterial !== undefined && deskSolidColorRef.current !== undefined;
       const originalOnBeforeCompile = plywoodMaterial?.onBeforeCompile;
       const originalCacheKey = plywoodMaterial?.customProgramCacheKey;
@@ -449,11 +469,11 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
           shader.fragmentShader = shader.fragmentShader
             .replace(
               'void main() {',
-              'uniform vec3 uDeskSolidColor;\nuniform float uDeskSolidAmount;\nuniform float uDeskLightInfluence;\nvoid main() {',
+              'uniform vec3 uDeskSolidColor;\nuniform float uDeskSolidAmount;\nuniform float uDeskLightInfluence;\nuniform vec3 uDeskAlbedoMean;\nvoid main() {',
             )
             .replace(
               '#include <map_fragment>',
-              '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, uDeskSolidColor, uDeskSolidAmount);',
+              '#include <map_fragment>\nvec3 deskGrain = diffuseColor.rgb / max(diffuse, vec3(0.001)) / max(uDeskAlbedoMean, vec3(0.001));\ndeskGrain = max(vec3(0.0), vec3(1.0) + (deskGrain - vec3(1.0)) * 1.25);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uDeskSolidColor * deskGrain, uDeskSolidAmount);',
             )
             // Lighting + ACES tone mapping shift the picked color a lot, so optionally pull
             // the final pixel back toward the flat swatch (0 influence = exact hex on screen).
@@ -462,7 +482,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
               '#include <tonemapping_fragment>\ngl_FragColor.rgb = mix(gl_FragColor.rgb, uDeskSolidColor, (1.0 - uDeskLightInfluence) * uDeskSolidAmount);',
             );
         };
-        plywoodMaterial.customProgramCacheKey = () => 'desk-solid-color';
+        plywoodMaterial.customProgramCacheKey = () => 'desk-solid-color-grain';
         plywoodMaterial.needsUpdate = true;
       }
 
@@ -666,7 +686,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
           model: keyboard,
           baseY: keyboard.position.y,
           introMaterials: collectIntroMaterials(keyboard, { keepDepthWrite: true }),
-          introDelay: 100,
+          introDelay: 60,
           introOffsetY: 0.12,
           introCurrentOffsetY: 0,
           liftCurrent: 0,
@@ -679,7 +699,7 @@ export const DeskSetupScene = forwardRef<DeskSetupSceneHandle, DeskSetupScenePro
           model: tablet,
           baseY: tablet.position.y,
           introMaterials: collectIntroMaterials(tablet),
-          introDelay: 200,
+          introDelay: 120,
           introOffsetY: 0.13,
           introCurrentOffsetY: 0,
           liftCurrent: 0,
