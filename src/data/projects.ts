@@ -121,7 +121,8 @@ const projectCatalog: Project[] = [
     backgroundEnd: '#a9ffa9',
     progressTrack: '#B5D59A',
     progressSegment: '#DF2684',
-    contentImage: '/assets/projects/beplain-content.png',
+    contentVideo: '/assets/projects/beplain-preview.mp4',
+    externalUrl: 'https://beplain.vercel.app/',
     tapeColors: ['#FF9FC7', '#90FF00'],
     hideProposalTape: true,
     decor: [
